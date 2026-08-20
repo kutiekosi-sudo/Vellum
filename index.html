@@ -1,0 +1,1157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Vellum — the study agent that remembers what you actually did</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Cormorant+Garamond:wght@500;600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+  :root {
+    --cream: #F3E9D8;
+    --cream-raised: #FBF5EA;
+    --maroon: #5C1626;
+    --maroon-deep: #400F1B;
+    --ink: #2B1A12;
+    --ink-soft: #7A6A5C;
+    --gold: #A9812F;
+    --gold-bg: #EFE0BC;
+    --sage: #5C6E4F;
+    --sage-bg: #E4E8DA;
+    --rust: #8C3A2A;
+    --rust-bg: #EFDDD4;
+    --line: #DCC9AE;
+  }
+  * { box-sizing: border-box; }
+  #vellum-root {
+    background: var(--cream);
+    background-image: repeating-linear-gradient(180deg, transparent, transparent 27px, rgba(92,22,38,0.045) 28px);
+    color: var(--ink); font-family: 'Inter', sans-serif; min-height: 100%; padding: 36px 20px 60px; line-height: 1.55;
+  }
+  .vl-wrap { max-width: 820px; margin: 0 auto; }
+  .vl-mono { font-family: 'IBM Plex Mono', monospace; }
+  .vl-header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px double var(--maroon); padding-bottom: 16px; margin-bottom: 20px; }
+  .vl-title { font-family: 'Fraunces', serif; font-size: 34px; font-weight: 600; color: var(--maroon); letter-spacing: -0.01em; }
+  .vl-tagline { font-family: 'Cormorant Garamond', serif; font-size: 15px; font-style: italic; color: var(--ink-soft); margin-top: 3px; }
+  .vl-day-badge { font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; letter-spacing: 0.06em; background: var(--maroon); color: var(--cream-raised); padding: 6px 12px; border-radius: 2px; white-space: nowrap; }
+  .vl-tabs { display: flex; gap: 3px; margin-bottom: 22px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .vl-tab { font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; letter-spacing: 0.02em; padding: 8px 11px; cursor: pointer; color: var(--ink-soft); border-bottom: 2px solid transparent; background: none; border-top: none; border-left: none; border-right: none; }
+  .vl-tab.active { color: var(--maroon); border-bottom: 2px solid var(--maroon); font-weight: 600; }
+  .vl-tab:hover { opacity: 0.8; }
+  .vl-nudge-banner { display: flex; align-items: flex-start; gap: 12px; background: var(--gold-bg); border: 1px solid var(--gold); border-radius: 3px; padding: 14px 16px; margin-bottom: 22px; }
+  .vl-nudge-banner .vl-nudge-icon { font-family: 'Fraunces', serif; font-size: 18px; color: var(--gold); line-height: 1; }
+  .vl-nudge-banner .vl-nudge-text { font-size: 13.5px; color: var(--ink); flex: 1; }
+  .vl-nudge-banner .vl-nudge-label { font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--gold); display: block; margin-bottom: 3px; }
+  .vl-alert-banner { display: flex; align-items: flex-start; gap: 12px; background: var(--rust-bg); border: 1px solid var(--rust); border-radius: 3px; padding: 14px 16px; margin-bottom: 22px; }
+  .vl-alert-banner .vl-alert-icon { font-size: 16px; }
+  .vl-alert-banner .vl-alert-text { font-size: 13.5px; color: var(--ink); flex: 1; }
+  .vl-alert-banner .vl-alert-label { font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--rust); display: block; margin-bottom: 3px; }
+  .vl-card { background: var(--cream-raised); border: 1px solid var(--line); border-radius: 4px; padding: 24px; margin-bottom: 22px; box-shadow: 0 1px 0 rgba(92,22,38,0.05); }
+  .vl-card h2 { font-family: 'Fraunces', serif; font-size: 18px; font-weight: 600; color: var(--maroon-deep); margin: 0 0 14px; }
+  .vl-eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--gold); margin-bottom: 6px; }
+  label { display: block; font-size: 13px; font-weight: 500; margin: 12px 0 5px; color: var(--ink); }
+  input, select, textarea { width: 100%; padding: 9px 11px; border: 1px solid var(--line); border-radius: 3px; background: white; font-family: 'Inter', sans-serif; font-size: 14px; color: var(--ink); }
+  textarea { resize: vertical; min-height: 60px; }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--maroon); outline-offset: 1px; }
+  button { font-family: 'Inter', sans-serif; font-weight: 600; font-size: 13.5px; border: none; border-radius: 3px; padding: 10px 18px; cursor: pointer; transition: opacity 0.15s; }
+  button:hover { opacity: 0.88; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .vl-btn-primary { background: var(--maroon); color: var(--cream-raised); }
+  .vl-btn-sage { background: var(--sage); color: white; }
+  .vl-btn-rust { background: var(--rust); color: white; }
+  .vl-btn-ghost { background: transparent; color: var(--maroon); border: 1px solid var(--line); }
+  .vl-btn-small { padding: 6px 12px; font-size: 12px; }
+  .vl-plan-topic { font-family: 'Fraunces', serif; font-size: 24px; font-weight: 600; color: var(--ink); }
+  .vl-plan-meta { display: flex; gap: 14px; margin: 8px 0 14px; font-size: 12.5px; color: var(--ink-soft); align-items: center; }
+  .vl-pill { display: inline-block; font-family: 'IBM Plex Mono', monospace; font-size: 11px; padding: 2px 9px; border-radius: 10px; background: var(--sage-bg); color: var(--sage); }
+  .vl-reasoning { font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; color: var(--ink-soft); background: white; border-left: 3px solid var(--maroon); padding: 11px 13px; border-radius: 2px; margin-top: 10px; }
+  .vl-log-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+  .vl-pod-member { margin-bottom: 16px; }
+  .vl-pod-member:last-child { margin-bottom: 0; }
+  .vl-pod-row { display: flex; align-items: center; gap: 10px; font-size: 13.5px; margin-bottom: 6px; }
+  .vl-pod-name { width: 62px; font-weight: 600; color: var(--maroon-deep); }
+  .vl-pod-bar { flex: 1; height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
+  .vl-pod-bar-fill { height: 100%; background: var(--sage); }
+  .vl-pod-pct { font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; color: var(--ink-soft); width: 34px; text-align: right; }
+  .vl-pod-feed { font-size: 12px; color: var(--ink-soft); padding-left: 72px; font-family: 'IBM Plex Mono', monospace; }
+  .vl-pod-insight { font-size: 12.5px; background: var(--sage-bg); color: var(--sage); border-radius: 3px; padding: 9px 12px; margin-top: 10px; }
+  .vl-ledger-entry { display: flex; gap: 12px; padding: 13px 0; border-bottom: 1px solid var(--line); }
+  .vl-ledger-entry:last-child { border-bottom: none; }
+  .vl-ledger-num { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--gold); width: 48px; flex-shrink: 0; padding-top: 2px; }
+  .vl-ledger-body { flex: 1; }
+  .vl-ledger-title { font-family: 'Fraunces', serif; font-size: 14.5px; font-weight: 600; color: var(--ink); margin-bottom: 3px; display: flex; align-items: center; }
+  .vl-ledger-reason { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--ink-soft); }
+  .vl-ledger-correction-badge { font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; background: var(--rust-bg); color: var(--rust); padding: 2px 7px; border-radius: 3px; margin-left: 8px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .vl-empty { text-align: center; padding: 30px 10px; color: var(--ink-soft); font-size: 13.5px; }
+  .vl-loading { text-align: center; padding: 22px; color: var(--maroon); font-size: 13px; font-family: 'IBM Plex Mono', monospace; }
+  .vl-note { font-size: 11.5px; color: var(--ink-soft); font-style: italic; margin-top: 4px; }
+  .vl-status-badge { font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; padding: 2px 7px; border-radius: 3px; }
+  .vl-status-done { background: var(--sage-bg); color: var(--sage); }
+  .vl-status-skipped { background: var(--rust-bg); color: var(--rust); }
+  .vl-status-partial { background: var(--gold-bg); color: var(--gold); }
+  .vl-correction-toggle { margin-top: 12px; }
+  .vl-correction-box { margin-top: 10px; padding: 14px; background: white; border: 1px dashed var(--maroon); border-radius: 4px; }
+  .vl-topic-block { margin-bottom: 20px; }
+  .vl-topic-block:last-child { margin-bottom: 0; }
+  .vl-topic-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 6px; }
+  .vl-topic-name { font-family: 'Fraunces', serif; font-size: 16px; font-weight: 600; color: var(--maroon-deep); }
+  .vl-flashcard-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+  .vl-flashcard { background: white; border: 1px solid var(--line); border-radius: 4px; padding: 16px; min-height: 90px; cursor: pointer; display: flex; align-items: center; justify-content: center; text-align: center; font-size: 13.5px; transition: background 0.15s; }
+  .vl-flashcard:hover { background: var(--gold-bg); }
+  .vl-flashcard-front { color: var(--ink); font-weight: 600; }
+  .vl-flashcard-back { color: var(--maroon-deep); font-family: 'IBM Plex Mono', monospace; font-size: 12px; }
+  .vl-flashcard-hint { font-size: 10px; color: var(--ink-soft); margin-top: 6px; font-style: italic; }
+  .vl-room-msg { border-bottom: 1px solid var(--line); padding: 10px 0; }
+  .vl-room-msg:last-child { border-bottom: none; }
+  .vl-room-author { font-weight: 600; color: var(--maroon-deep); font-size: 13px; }
+  .vl-room-time { font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: var(--ink-soft); margin-left: 8px; }
+  .vl-room-text { font-size: 13.5px; margin-top: 3px; }
+  .vl-chat-log { max-height: 360px; overflow-y: auto; margin-bottom: 14px; }
+  .vl-chat-msg { margin-bottom: 12px; }
+  .vl-chat-role { font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 3px; }
+  .vl-chat-role.user { color: var(--maroon); }
+  .vl-chat-role.assistant { color: var(--sage); }
+  .vl-chat-bubble { background: white; border: 1px solid var(--line); border-radius: 4px; padding: 10px 13px; font-size: 13.5px; }
+  .vl-chat-input-row { display: flex; gap: 8px; }
+  .vl-chat-input-row input { flex: 1; }
+  .vl-readiness-block { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
+  .vl-readiness-score { font-family: 'Fraunces', serif; font-size: 52px; font-weight: 700; color: var(--maroon); line-height: 1; }
+  .vl-readiness-side { flex: 1; min-width: 180px; }
+  .vl-readiness-label { font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-soft); }
+  .vl-readiness-status { font-size: 14px; margin-top: 4px; color: var(--ink); }
+  .vl-readiness-breakdown { font-size: 11.5px; color: var(--ink-soft); margin-top: 8px; font-family: 'IBM Plex Mono', monospace; }
+  .vl-retention-row { display: flex; align-items: center; gap: 10px; margin-bottom: 9px; font-size: 13px; }
+  .vl-retention-name { width: 150px; flex-shrink: 0; }
+  .vl-retention-bar { flex: 1; height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
+  .vl-retention-fill { height: 100%; }
+  .vl-retention-pct { width: 84px; text-align: right; font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--ink-soft); }
+  .vl-dep-item { padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+  .vl-dep-item:last-child { border-bottom: none; }
+  .vl-dep-topic { font-weight: 600; }
+  .vl-dep-topic.weak { color: var(--rust); }
+  .vl-dep-topic.ok { color: var(--maroon-deep); }
+  .vl-dep-req { font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; color: var(--ink-soft); margin-top: 2px; }
+  .vl-dep-req.weak-flag { color: var(--rust); }
+  .vl-dep-chain { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-family: 'IBM Plex Mono', monospace; font-size: 12px; margin-top: 4px; }
+  .vl-dep-node { padding: 3px 8px; border-radius: 3px; background: var(--sage-bg); color: var(--sage); }
+  .vl-dep-node.weak { background: var(--rust-bg); color: var(--rust); }
+  .vl-dep-arrow { color: var(--ink-soft); }
+
+  /* Dashboard */
+  .vl-hero-ring-wrap { display: flex; align-items: center; gap: 26px; flex-wrap: wrap; }
+  .vl-attention-list { list-style: none; padding: 0; margin: 0; }
+  .vl-attention-list li { padding: 7px 0; font-size: 13.5px; border-bottom: 1px solid var(--line); }
+  .vl-attention-list li:last-child { border-bottom: none; }
+  .vl-health-badge { display: inline-flex; align-items: center; gap: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; padding: 5px 11px; border-radius: 12px; }
+  .vl-health-stable { background: var(--sage-bg); color: var(--sage); }
+  .vl-health-watch { background: var(--gold-bg); color: var(--gold); }
+  .vl-health-risk { background: var(--rust-bg); color: var(--rust); }
+  .vl-action-card { border: 2px solid var(--maroon); background: white; border-radius: 5px; padding: 18px; }
+  .vl-action-topic { font-family: 'Fraunces', serif; font-size: 20px; font-weight: 700; color: var(--maroon); }
+  .vl-action-reason { font-size: 13px; color: var(--ink-soft); margin: 6px 0 12px; }
+  .vl-action-steps { font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; color: var(--ink); margin-bottom: 12px; }
+
+  /* Tests / quiz */
+  .vl-quiz-q { margin-bottom: 18px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
+  .vl-quiz-q:last-child { border-bottom: none; }
+  .vl-quiz-qtext { font-weight: 600; margin-bottom: 8px; font-size: 14px; }
+  .vl-quiz-opt { display: block; padding: 8px 11px; border: 1px solid var(--line); border-radius: 3px; margin-bottom: 6px; cursor: pointer; font-size: 13.5px; background: white; }
+  .vl-quiz-opt:hover { background: var(--gold-bg); }
+  .vl-quiz-opt.selected { border-color: var(--maroon); background: var(--gold-bg); }
+  .vl-quiz-opt.correct { border-color: var(--sage); background: var(--sage-bg); }
+  .vl-quiz-opt.incorrect { border-color: var(--rust); background: var(--rust-bg); }
+  .vl-autopsy-box { margin-top: 10px; background: white; border-left: 3px solid var(--rust); padding: 12px 14px; border-radius: 3px; }
+  .vl-autopsy-title { font-weight: 700; color: var(--rust); font-size: 13px; margin-bottom: 4px; }
+  .vl-autopsy-meta { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--ink-soft); margin: 6px 0; }
+  .vl-score-badge { font-family: 'Fraunces', serif; font-size: 30px; font-weight: 700; color: var(--maroon); }
+
+  /* Teach it back */
+  .vl-tb-metrics { display: flex; gap: 18px; margin: 10px 0 14px; flex-wrap: wrap; }
+  .vl-tb-metric { text-align: center; }
+  .vl-tb-metric-val { font-family: 'Fraunces', serif; font-size: 24px; font-weight: 700; color: var(--maroon); }
+  .vl-tb-metric-label { font-family: 'IBM Plex Mono', monospace; font-size: 10px; text-transform: uppercase; color: var(--ink-soft); }
+  .vl-ghost-item { padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+  .vl-ghost-item:last-child { border-bottom: none; }
+
+  /* Optimizer */
+  .vl-scenario-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0 16px; }
+  .vl-whatif-result { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 13.5px; }
+  .vl-whatif-result:last-child { border-bottom: none; }
+  .vl-whatif-arrow { font-family: 'IBM Plex Mono', monospace; color: var(--ink-soft); }
+  .vl-optimizer-block { padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .vl-optimizer-block:last-child { border-bottom: none; }
+  .vl-optimizer-mins { font-family: 'IBM Plex Mono', monospace; font-weight: 600; color: var(--maroon); }
+</style>
+</head>
+<body>
+<div id="vellum-root"></div>
+<script>
+
+(function() {
+  const STORAGE_KEY = 'vellum-state-v5';
+
+  function getDeviceId() {
+    let id = localStorage.getItem('vellum-device-id');
+    if (!id) { id = 'dev-' + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('vellum-device-id', id); }
+    return id;
+  }
+  async function storageGet(key, shared) {
+    const fullKey = shared ? key : (getDeviceId() + ':' + key);
+    const res = await fetch('/.netlify/functions/storage', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'get', key: fullKey }) });
+    const data = await res.json();
+    return data.value !== null && data.value !== undefined ? { value: data.value } : null;
+  }
+  async function storageSet(key, value, shared) {
+    const fullKey = shared ? key : (getDeviceId() + ':' + key);
+    await fetch('/.netlify/functions/storage', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'set', key: fullKey, value }) });
+    return { value };
+  }
+
+  let state = null;
+  let root = document.getElementById('vellum-root');
+  let flippedCards = {};
+  let quizAnswers = {}; // transient: qIndex -> selectedIndex, reset per quiz session
+
+  function defaultState() {
+    return {
+      goal: null, currentDay: 1, sessions: [], decisionLog: [], podSeed: Math.floor(Math.random() * 10000),
+      flashcards: {}, chatHistory: [], displayName: '', dependencyMap: null,
+      quizzes: {}, teachBack: {}, autopsyLog: [], readinessHistory: [],
+      loading: false, loadingFlashcards: null, loadingChat: false, loadingRoom: false, loadingMap: false,
+      loadingQuiz: null, loadingGrading: false, loadingTeachBack: null, loadingOptimizer: false,
+      showCorrectionInput: false, activeTab: 'dashboard', selectedQuizTopic: null, selectedTBTopic: null,
+      minimumPlan: null, roomMessages: [], view: 'onboarding'
+    };
+  }
+
+  async function loadState() {
+    try {
+      const res = await storageGet(STORAGE_KEY, false);
+      state = res ? JSON.parse(res.value) : defaultState();
+    } catch (e) { state = defaultState(); }
+    const d = defaultState();
+    Object.keys(d).forEach(k => { if (state[k] === undefined) state[k] = d[k]; });
+    if (state.goal) state.view = 'dashboard';
+    render();
+  }
+
+  async function saveState() {
+    try {
+      // roomMessages is shared-storage data, fetched fresh on demand — persisting it here
+      // duplicated an ever-growing feed into personal state and eventually broke saves.
+      const toSave = Object.assign({}, state);
+      delete toSave.roomMessages;
+      await storageSet(STORAGE_KEY, JSON.stringify(toSave), false);
+    } catch (e) { console.error('Storage save failed', e); }
+  }
+
+  function roomKey() {
+    const slug = (state.goal.title || 'general').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40);
+    return `vellum-room-${slug}`;
+  }
+
+  // ---- Simulated pod (with per-topic mastery for class alerts) ----
+  const POD_NAMES = ['Amara', 'Chidi'];
+  const POD_ACTIVITY = ['review notes', 'practice set', 'flashcards', 'past questions'];
+
+  function podStatusForDay(day) {
+    return POD_NAMES.map((name, i) => {
+      const seed = (state.podSeed + day * 7 + i * 13) % 100;
+      const pct = Math.max(20, Math.min(100, 40 + (seed % 60)));
+      const activitySeed = (state.podSeed + day * 11 + i * 5) % POD_ACTIVITY.length;
+      const durSeed = 15 + ((state.podSeed + day * 3 + i) % 30);
+      const hoursAgoSeed = 1 + ((state.podSeed + i * 9 + day) % 6);
+      return { name, pct, lastActivity: `completed ${POD_ACTIVITY[activitySeed]} \u00b7 ${durSeed}min \u00b7 ${hoursAgoSeed}h ago` };
+    });
+  }
+  function podTopicMastery(topic) {
+    // deterministic mock mastery per member for a given topic
+    let hash = 0;
+    for (let i = 0; i < topic.length; i++) hash = (hash * 31 + topic.charCodeAt(i)) % 1000;
+    return POD_NAMES.map((name, i) => ({ name, mastery: Math.max(15, Math.min(95, (state.podSeed + hash + i * 227) % 100)) }));
+  }
+  function podSummaryText(day) {
+    return podStatusForDay(day).map(p => `${p.name} is ${p.pct}% through this week's plan, most recently: ${p.lastActivity}`).join('; ');
+  }
+  function podAheadCount(day, userPct) { return podStatusForDay(day).filter(p => p.pct > userPct).length; }
+  function userCompletionPct() {
+    const done = state.sessions.filter(s => s.status === 'done' || s.status === 'partial').length;
+    const total = state.sessions.length || 1;
+    return Math.round((done / total) * 100);
+  }
+  function classConceptAlert() {
+    // if both mock pod members are weak (<50) on a topic the student is also weak on, surface it
+    for (const t of state.goal.topics) {
+      const mastery = podTopicMastery(t);
+      const bothWeak = mastery.every(m => m.mastery < 50);
+      const r = computeRetention(t, state.currentDay);
+      if (bothWeak && (r === null || r.retention < 60)) {
+        return { topic: t, mastery };
+      }
+    }
+    return null;
+  }
+
+  function computeProactiveNudge() {
+    const recent = state.sessions.slice(-3);
+    const recentSkips = recent.filter(s => s.status === 'skipped').length;
+    if (recentSkips >= 2) return { label: 'Pattern detected', text: `You've skipped ${recentSkips} of your last ${recent.length} sessions. Today's plan has been shortened — small and done beats long and skipped.` };
+    const ahead = podAheadCount(state.currentDay, userCompletionPct());
+    if (ahead === POD_NAMES.length && state.sessions.length >= 2) return { label: 'Pod check-in', text: `Both pod members are currently ahead of your pace. No pressure — just worth a slightly longer session today if you have the time.` };
+    return null;
+  }
+
+  // ---- Retention forecast (now also informed by quiz results — testing is itself a review event) ----
+  function computeRetention(topic, currentDay) {
+    // skipped sessions are NOT evidence of review — only done/partial count
+    const topicSessions = state.sessions.filter(s => s.topic === topic && (s.status === 'done' || s.status === 'partial'));
+    const quiz = state.quizzes[topic] && state.quizzes[topic].lastResult;
+    if (topicSessions.length === 0 && !quiz) return null;
+
+    // "start" = retention right at the moment of the MOST RECENT evidence — reflects how well that evidence went
+    let lastDay = topicSessions.length ? topicSessions[topicSessions.length - 1].day : null;
+    let startValue = 80;
+    if (topicSessions.length) {
+      const lastSession = topicSessions[topicSessions.length - 1];
+      startValue = lastSession.actualDifficulty === 'easy' ? 95 : lastSession.actualDifficulty === 'hard' ? 60 : 80;
+    }
+    let reviews = topicSessions.length;
+    let easeSum = topicSessions.reduce((acc, s) => acc + (s.actualDifficulty === 'easy' ? 1.4 : s.actualDifficulty === 'hard' ? 0.6 : 1), 0);
+
+    if (quiz && (lastDay === null || quiz.day >= lastDay)) {
+      lastDay = quiz.day;
+      startValue = quiz.score; // a bad quiz score directly means low retention right now, not just faster future decay
+      reviews += 1;
+      easeSum += (quiz.score / 100) * 1.6;
+    }
+    const avgEase = reviews ? easeSum / reviews : 1;
+    const daysSince = currentDay - lastDay;
+    const stability = Math.max(1, reviews * 2 * avgEase);
+    const retention = Math.round(Math.max(0, Math.min(100, startValue)) * Math.exp(-daysSince / stability));
+    return { retention: Math.max(0, Math.min(100, retention)), daysSince, stability: Math.round(stability * 10) / 10, reviews };
+  }
+  function retentionSummaryText(currentDay) {
+    return state.goal.topics.map(t => {
+      const r = computeRetention(t, currentDay);
+      return r ? `${t}: ~${r.retention}% retained (last evidence ${r.daysSince}d ago, ${r.reviews} review(s))` : `${t}: not yet studied`;
+    }).join('; ');
+  }
+  function retentionColor(pct) { if (pct >= 70) return 'var(--sage)'; if (pct >= 40) return 'var(--gold)'; return 'var(--rust)'; }
+
+  function ghostKnowledgeSummaryText() {
+    const flagged = state.goal.topics.map(t => computeGhostKnowledge(t)).filter(g => g && g.flagged);
+    if (flagged.length === 0) return 'none detected';
+    return flagged.map(g => `${g.topic} (recognizes at ${g.recognition}% but recalls at only ${g.recall}%)`).join('; ');
+  }
+
+  // ---- Exam readiness (now factors quiz accuracy + ghost knowledge penalty) ----
+  function computeReadiness() {
+    const topics = state.goal.topics;
+    const retentions = topics.map(t => computeRetention(t, state.currentDay));
+    const studied = retentions.filter(r => r !== null);
+    const avgRetention = studied.length ? studied.reduce((a, r) => a + r.retention, 0) / studied.length : 0;
+    const coverage = topics.length ? (studied.length / topics.length) * 100 : 0;
+    const completedSessions = state.sessions.filter(s => s.status === 'done').length;
+    const loggedSessions = state.sessions.filter(s => s.status !== 'pending').length || 1;
+    const consistency = (completedSessions / loggedSessions) * 100;
+    const ghostCount = topics.map(t => computeGhostKnowledge(t)).filter(g => g && g.flagged).length;
+    const ghostPenalty = Math.min(20, ghostCount * 7);
+
+    let score = Math.round(avgRetention * 0.42 + coverage * 0.28 + consistency * 0.22 + 8) - ghostPenalty;
+    score = Math.max(0, Math.min(99, score));
+    let statusLabel = 'Just getting started';
+    if (state.sessions.length > 0 || Object.keys(state.quizzes).length > 0) {
+      if (score >= 75) statusLabel = 'On track';
+      else if (score >= 45) statusLabel = 'Building, but gaps remain';
+      else statusLabel = 'Behind — needs focused catch-up';
+    }
+    return { score, avgRetention: Math.round(avgRetention), coverage: Math.round(coverage), consistency: Math.round(consistency), ghostCount, statusLabel };
+  }
+
+  function recordReadinessSnapshot() {
+    const score = computeReadiness().score;
+    const existingIdx = state.readinessHistory.findIndex(h => h.day === state.currentDay);
+    if (existingIdx >= 0) state.readinessHistory[existingIdx].score = score;
+    else state.readinessHistory.push({ day: state.currentDay, score });
+  }
+  function whatChangedText() {
+    if (state.readinessHistory.length < 2) return null;
+    const sorted = state.readinessHistory.slice().sort((a, b) => a.day - b.day);
+    const latest = sorted[sorted.length - 1];
+    const earliest = sorted[0];
+    const diff = latest.score - earliest.score;
+    if (diff === 0) return null;
+    return `Your exam readiness ${diff > 0 ? 'improved' : 'dropped'} ${Math.abs(diff)}% since Day ${earliest.day}.`;
+  }
+  function academicHealth() {
+    const readiness = computeReadiness();
+    const recentSkips = state.sessions.slice(-3).filter(s => s.status === 'skipped').length;
+    if (readiness.score >= 70 && recentSkips === 0) return { level: 'stable', label: '\ud83d\udfe2 Stable' };
+    if (readiness.score < 40 || recentSkips >= 2) return { level: 'risk', label: '\ud83d\udd34 Needs attention' };
+    return { level: 'watch', label: '\ud83d\udfe1 Watch' };
+  }
+
+  // ---- Dependency map + prerequisite failure detection ----
+  function dependencySummaryText() {
+    if (!state.dependencyMap) return 'not yet mapped';
+    return state.dependencyMap.map(d => (d.dependsOn && d.dependsOn.length) ? `${d.topic} builds on: ${d.dependsOn.join(', ')}` : `${d.topic}: no prerequisites`).join('; ');
+  }
+  function weakPrerequisitesFor(topic) {
+    if (!state.dependencyMap) return [];
+    const entry = state.dependencyMap.find(d => d.topic === topic);
+    if (!entry || !entry.dependsOn) return [];
+    return entry.dependsOn.filter(dep => {
+      const r = computeRetention(dep, state.currentDay);
+      return r && r.retention < 50;
+    });
+  }
+
+  // ---- Ghost knowledge: quiz score (recognition) vs teach-it-back score (recall) ----
+  function computeGhostKnowledge(topic) {
+    const quiz = state.quizzes[topic] && state.quizzes[topic].lastResult;
+    const tbList = state.teachBack[topic];
+    const tb = tbList && tbList.length ? tbList[tbList.length - 1] : null;
+    if (!quiz || !tb) return null;
+    const recognition = quiz.score;
+    const recall = tb.accuracy;
+    return { topic, recognition, recall, flagged: (recognition - recall) >= 25 };
+  }
+
+  // ---- Recommended action (the Action Layer) ----
+  function computeRecommendedAction() {
+    const topics = state.goal.topics;
+    if (!topics || topics.length === 0) return null;
+    let worst = null;
+    topics.forEach(t => {
+      const r = computeRetention(t, state.currentDay);
+      const ghost = computeGhostKnowledge(t);
+      const weakPrereqs = weakPrerequisitesFor(t);
+      let urgency = r ? (100 - r.retention) : 60; // unstudied topics get moderate urgency
+      if (ghost && ghost.flagged) urgency += 20;
+      if (weakPrereqs.length) urgency += 15;
+      if (!worst || urgency > worst.urgency) worst = { topic: t, urgency, retention: r ? r.retention : null, ghost, weakPrereqs };
+    });
+    if (!worst) return null;
+    let reason;
+    if (worst.weakPrereqs.length) reason = `Your prerequisite "${worst.weakPrereqs[0]}" is shaky, which is likely dragging this topic down.`;
+    else if (worst.ghost && worst.ghost.flagged) reason = `You recognize this topic in quizzes but struggle to recall it independently.`;
+    else if (worst.retention !== null) reason = `Retention has fallen to ~${worst.retention}% — this is close to the forgetting point.`;
+    else reason = `This topic hasn't been studied or tested yet.`;
+    return { topic: worst.topic, reason, steps: '8-minute revision \u2192 5-question quiz \u2192 Teach It Back' };
+  }
+
+  // ---- What-if simulator (transparent projection model) ----
+  function whatIfScenario(kind) {
+    const base = computeReadiness().score;
+    if (kind === 'none-7') {
+      // project retention decay forward 7 days using the same real decay math
+      const projDay = state.currentDay + 7;
+      const retentions = state.goal.topics.map(t => computeRetention(t, projDay)).filter(r => r !== null);
+      const avg = retentions.length ? retentions.reduce((a, r) => a + r.retention, 0) / retentions.length : base;
+      return Math.max(0, Math.round(base * 0.5 + avg * 0.5));
+    }
+    const minutesMap = { '15': 15, '30': 30, '60': 60, '120': 120 };
+    const minutes = minutesMap[kind];
+    if (minutes === undefined) return base;
+    // simplified diminishing-returns model over 7 simulated days, clearly a projection not a real simulation
+    const effect = Math.min(35, Math.sqrt(minutes * 7) / 2.6);
+    return Math.min(97, Math.round(base + effect));
+  }
+
+  // ---- Claude API helper ----
+  async function claudeCall(prompt, maxTokens) {
+    const response = await fetch("/.netlify/functions/claude", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt, max_tokens: maxTokens || 500 })
+    });
+    const data = await response.json();
+    if (data.error) throw new Error(data.error);
+    return data.content.map(b => b.text || '').join('');
+  }
+
+  async function callAgent(userSummary, podSummary, goal, isFirstPlan) {
+    const retentionSummary = retentionSummaryText(state.currentDay);
+    const depSummary = dependencySummaryText();
+    const ghostSummary = ghostKnowledgeSummaryText();
+    const prompt = `You are Vellum, an adaptive study-planning agent. Generate ONE day's study session using the student's actual history, retention forecast, topic prerequisite structure, ghost knowledge signals, and pod signal.
+
+Student goal: "${goal.title}" (subject: ${goal.subject}), target date: ${goal.targetDate}.
+Topics to cover: ${goal.topics.join(', ')}.
+${isFirstPlan ? 'This is the very first day — no history yet.' : `Recent history (most recent last):\n${userSummary}`}
+Retention forecast per topic: ${retentionSummary}
+Topic prerequisite structure: ${depSummary}
+Ghost knowledge (recognizes but can't recall independently): ${ghostSummary}
+Study pod signal: ${podSummary}
+
+Prioritize topics with low retention or flagged ghost knowledge, but only if their prerequisites are satisfied (studied or none). Weigh against recent struggle/skip pattern.
+
+Respond with ONLY a raw JSON object, no markdown fences:
+{"topic": "from the topics list", "duration_min": number (10-45), "difficulty": "easy"|"medium"|"hard", "reasoning": "1-2 sentences citing retention risk, prerequisites, ghost knowledge, or history", "pod_note": "1 short sentence or null"}`;
+    const text = await claudeCall(prompt, 550);
+    return JSON.parse(text.replace(/```json|```/g, '').trim());
+  }
+
+  function buildHistorySummary() {
+    if (state.sessions.length === 0) return '';
+    return state.sessions.map(s => {
+      let line = `Day ${s.day}: planned "${s.topic}" (${s.plannedDuration}min, ${s.difficulty}) — status: ${s.status}`;
+      if (s.status !== 'pending') { line += `, actual ${s.actualDuration || 0}min, felt ${s.actualDifficulty || 'n/a'}`; if (s.note) line += `, note: "${s.note}"`; }
+      return line;
+    }).join('\n');
+  }
+
+  async function generateNextPlan() {
+    state.loading = true; render();
+    try {
+      const isFirst = state.sessions.length === 0;
+      const result = await callAgent(buildHistorySummary(), podSummaryText(state.currentDay), state.goal, isFirst);
+      state.sessions.push({ day: state.currentDay, topic: result.topic, plannedDuration: result.duration_min, difficulty: result.difficulty, status: 'pending', actualDuration: null, actualDifficulty: null, note: '' });
+      state.decisionLog.unshift({ day: state.currentDay, topic: result.topic, reasoning: result.reasoning, podNote: result.pod_note, type: 'plan' });
+    } catch (e) { console.error(e); alert('The agent had trouble generating a plan. Try again.'); }
+    state.loading = false; state.showCorrectionInput = false;
+    recordReadinessSnapshot(); await saveState(); render();
+  }
+
+  function toggleCorrectionInput() { state.showCorrectionInput = !state.showCorrectionInput; render(); }
+
+  async function submitCorrection() {
+    const reason = document.getElementById('vl-correction-reason').value.trim();
+    if (!reason) { alert("Tell the agent what feels off about today's plan."); return; }
+    const today = state.sessions.find(s => s.day === state.currentDay && s.status === 'pending');
+    if (!today) return;
+    state.loading = true; render();
+    try {
+      const prompt = `You are Vellum. You gave the student this plan: topic "${today.topic}", ${today.plannedDuration} minutes, difficulty "${today.difficulty}". They pushed back: "${reason}". Revise it, staying within: ${state.goal.topics.join(', ')}.
+Respond with ONLY a raw JSON object: {"topic": "revised topic", "duration_min": number (10-45), "difficulty": "easy"|"medium"|"hard", "reasoning": "1-2 sentences acknowledging their pushback and explaining the change"}`;
+      const result = JSON.parse((await claudeCall(prompt, 400)).replace(/```json|```/g, '').trim());
+      today.topic = result.topic; today.plannedDuration = result.duration_min; today.difficulty = result.difficulty;
+      state.decisionLog.unshift({ day: state.currentDay, topic: result.topic, reasoning: result.reasoning, podNote: null, type: 'correction', reasonGiven: reason });
+    } catch (e) { console.error(e); alert('The agent had trouble revising the plan. Try again.'); }
+    state.loading = false; state.showCorrectionInput = false; await saveState(); render();
+  }
+
+  async function buildDependencyMap() {
+    state.loadingMap = true; render();
+    try {
+      const prompt = `Given these study topics for "${state.goal.subject}": ${state.goal.topics.join(', ')}. Determine a sensible prerequisite learning order based on how the subject builds.
+Respond with ONLY a raw JSON array: [{"topic": "exact name from list", "dependsOn": ["other topic name(s), or empty array"]}]`;
+      state.dependencyMap = JSON.parse((await claudeCall(prompt, 600)).replace(/```json|```/g, '').trim());
+    } catch (e) { console.error(e); alert('Could not build the dependency map. Try again.'); }
+    state.loadingMap = false; await saveState(); render();
+  }
+
+  async function generateFlashcards(topic) {
+    state.loadingFlashcards = topic; render();
+    try {
+      const prompt = `Generate exactly 5 study flashcards for "${topic}" within "${state.goal.subject}", for a student working toward "${state.goal.title}".
+Respond with ONLY a raw JSON array: [{"front": "question or term", "back": "concise answer (1-2 sentences)"}]`;
+      state.flashcards[topic] = JSON.parse((await claudeCall(prompt, 800)).replace(/```json|```/g, '').trim());
+    } catch (e) { console.error(e); alert('Could not generate flashcards. Try again.'); }
+    state.loadingFlashcards = null; await saveState(); render();
+  }
+  function toggleFlip(topic, idx) { flippedCards[topic + '|' + idx] = !flippedCards[topic + '|' + idx]; render(); }
+
+  // ---- Tests: quiz generation, taking, grading, concept autopsy ----
+  async function generateQuiz(topic) {
+    state.loadingQuiz = topic; render();
+    try {
+      const prompt = `Generate exactly 5 multiple-choice questions testing real understanding of "${topic}" within "${state.goal.subject}", for a student working toward "${state.goal.title}". Make wrong options plausible (common misconceptions), not silly.
+Respond with ONLY a raw JSON array: [{"question": "...", "options": ["A","B","C","D"], "correctIndex": 0}]`;
+      const questions = JSON.parse((await claudeCall(prompt, 900)).replace(/```json|```/g, '').trim());
+      state.quizzes[topic] = { questions, lastResult: null };
+      quizAnswers = {};
+      state.selectedQuizTopic = topic;
+    } catch (e) { console.error(e); alert('Could not generate the quiz. Try again.'); }
+    state.loadingQuiz = null; await saveState(); render();
+  }
+
+  function selectQuizAnswer(qIndex, optIndex) {
+    quizAnswers[qIndex] = optIndex;
+    render();
+  }
+
+  async function submitQuiz(topic) {
+    const quiz = state.quizzes[topic];
+    if (!quiz) return;
+    const total = quiz.questions.length;
+    const unanswered = quiz.questions.some((q, i) => quizAnswers[i] === undefined);
+    if (unanswered) { alert('Answer every question before submitting.'); return; }
+
+    const answered = quiz.questions.map((q, i) => ({
+      qIndex: i, selectedIndex: quizAnswers[i], correctIndex: q.correctIndex, correct: quizAnswers[i] === q.correctIndex
+    }));
+    const correctCount = answered.filter(a => a.correct).length;
+    const score = Math.round((correctCount / total) * 100);
+    quiz.lastResult = { day: state.currentDay, score, total, answered };
+
+    const wrong = answered.filter(a => !a.correct);
+    if (wrong.length > 0) {
+      state.loadingGrading = true; render();
+      try {
+        const wrongText = wrong.map((a, idx) => {
+          const q = quiz.questions[a.qIndex];
+          return `Q${idx + 1}: "${q.question}" | correct: "${q.options[a.correctIndex]}" | student chose: "${q.options[a.selectedIndex]}"`;
+        }).join('\n');
+        const prompt = `A student answered these questions incorrectly on a "${topic}" quiz (subject: ${state.goal.subject}):
+${wrongText}
+Known prerequisite structure: ${dependencySummaryText()}
+
+For each, diagnose why they likely got it wrong. Respond with ONLY a raw JSON array, one entry per question in order:
+[{"errorType": "one of: Concept misunderstanding, Formula confusion, Prerequisite weakness, Calculation error, Misreading the question, Recall failure, Careless mistake, Confusing two related concepts, Incorrect reasoning, Guessing", "explanation": "1-2 sentences on specifically what went wrong", "rootTopic": "the topic most responsible, from the topic list, or '${topic}' if none other applies", "confidence": number 0-100, "recommendedAction": "short actionable next step"}]`;
+        const autopsies = JSON.parse((await claudeCall(prompt, 900)).replace(/```json|```/g, '').trim());
+        wrong.forEach((a, idx) => {
+          a.autopsy = autopsies[idx];
+          state.autopsyLog.push({ day: state.currentDay, topic, errorType: autopsies[idx].errorType, rootTopic: autopsies[idx].rootTopic, explanation: autopsies[idx].explanation });
+        });
+      } catch (e) { console.error('Autopsy failed', e); }
+      state.loadingGrading = false;
+    }
+    quizAnswers = {};
+    recordReadinessSnapshot();
+    await saveState(); render();
+  }
+
+  function recurringMisconceptions() {
+    const counts = {};
+    state.autopsyLog.forEach(a => { counts[a.errorType] = (counts[a.errorType] || 0) + 1; });
+    return Object.entries(counts).filter(([k, v]) => v >= 2).map(([k, v]) => ({ errorType: k, count: v }));
+  }
+
+  // ---- Teach It Back ----
+  async function submitTeachBack(topic) {
+    const input = document.getElementById('vl-tb-input');
+    const explanation = input.value.trim();
+    if (!explanation) { alert('Write your explanation first.'); return; }
+    state.loadingTeachBack = topic; render();
+    try {
+      const prompt = `A student was asked to teach "${topic}" (subject: ${state.goal.subject}) to a 10-year-old, in their own words. Their explanation:
+"${explanation}"
+
+Evaluate it. Respond with ONLY a raw JSON object:
+{"accuracy": number 0-100, "clarity": number 0-100, "completeness": number 0-100, "misconception": "a specific misconception in their explanation, or null if none", "missingConcept": "a key concept they left out, or null if none"}`;
+      const result = JSON.parse((await claudeCall(prompt, 500)).replace(/```json|```/g, '').trim());
+      if (!state.teachBack[topic]) state.teachBack[topic] = [];
+      state.teachBack[topic].push({ day: state.currentDay, explanation, ...result });
+      input.value = '';
+    } catch (e) { console.error(e); alert('Could not grade your explanation. Try again.'); }
+    state.loadingTeachBack = null;
+    recordReadinessSnapshot();
+    await saveState(); render();
+  }
+
+  // ---- Minimum study optimizer ----
+  async function runOptimizer() {
+    const minutesInput = document.getElementById('vl-optimizer-minutes');
+    const minutes = parseInt(minutesInput.value);
+    if (!minutes || minutes < 10) { alert('Enter how many minutes you have (at least 10).'); return; }
+    state.loadingOptimizer = true; render();
+
+    const weighted = state.goal.topics.map(t => {
+      const r = computeRetention(t, state.currentDay);
+      const ghost = computeGhostKnowledge(t);
+      const dependents = state.dependencyMap ? state.dependencyMap.filter(d => d.dependsOn && d.dependsOn.includes(t)).length : 0;
+      let weight = r ? (100 - r.retention) : 55;
+      if (ghost && ghost.flagged) weight += 20;
+      weight += dependents * 10;
+      return { topic: t, weight, retention: r ? r.retention : null, dependents };
+    }).sort((a, b) => b.weight - a.weight);
+
+    const totalWeight = weighted.reduce((a, w) => a + w.weight, 0) || 1;
+    let remaining = minutes;
+    const blocks = [];
+    weighted.forEach((w, i) => {
+      if (remaining < 10) return;
+      let alloc = Math.round((w.weight / totalWeight) * minutes / 5) * 5;
+      alloc = Math.max(10, Math.min(35, alloc, remaining));
+      if (i === weighted.length - 1 || remaining - alloc < 10) alloc = remaining;
+      blocks.push({ topic: w.topic, minutes: alloc, retention: w.retention, dependents: w.dependents });
+      remaining -= alloc;
+    });
+
+    try {
+      const blocksText = blocks.map(b => `${b.minutes}min on ${b.topic} (retention ${b.retention === null ? 'untested' : b.retention + '%'}, ${b.dependents} topic(s) depend on it)`).join('; ');
+      const prompt = `A student has ${minutes} minutes tonight. This allocation was computed by weighting retention risk and prerequisite importance: ${blocksText}
+Write one short paragraph (2-3 sentences) in Vellum's voice explaining why this allocation prioritizes what it does, referencing the actual numbers.`;
+      const explanation = (await claudeCall(prompt, 300)).trim();
+      state.minimumPlan = { minutes, blocks, explanation, day: state.currentDay };
+    } catch (e) {
+      state.minimumPlan = { minutes, blocks, explanation: 'Blocks are ordered by retention risk and how many other topics depend on each one.', day: state.currentDay };
+    }
+    state.loadingOptimizer = false;
+    await saveState(); render();
+  }
+
+  // ---- Study Room (shared) ----
+  async function loadRoomMessages() {
+    state.loadingRoom = true; render();
+    try { const res = await storageGet(roomKey(), true); state.roomMessages = res ? JSON.parse(res.value) : []; }
+    catch (e) { state.roomMessages = []; }
+    state.loadingRoom = false; render();
+  }
+  async function postRoomMessage() {
+    const nameInput = document.getElementById('vl-room-name'); const textInput = document.getElementById('vl-room-text');
+    const name = (nameInput.value || state.displayName || 'Anonymous').trim(); const text = textInput.value.trim();
+    if (!text) return;
+    state.displayName = name;
+    try {
+      const res = await storageGet(roomKey(), true);
+      const existing = res ? JSON.parse(res.value) : [];
+      existing.push({ author: name, text, ts: new Date().toISOString() });
+      await storageSet(roomKey(), JSON.stringify(existing), true);
+      state.roomMessages = existing; textInput.value = '';
+    } catch (e) { console.error(e); alert('Could not post. Try again.'); }
+    await saveState(); render();
+  }
+
+  // ---- Ask Vellum chat ----
+  async function sendChatMessage() {
+    const input = document.getElementById('vl-chat-input'); const msg = input.value.trim();
+    if (!msg) return;
+    state.chatHistory.push({ role: 'user', content: msg }); input.value = ''; state.loadingChat = true; render();
+    try {
+      const recentHistory = state.chatHistory.slice(-8).map(m => `${m.role === 'user' ? 'Student' : 'Vellum'}: ${m.content}`).join('\n');
+      const prompt = `You are Vellum, a warm AI study tutor helping with: "${state.goal.title}" (subject: ${state.goal.subject}). Topics: ${state.goal.topics.join(', ')}.
+Conversation so far:\n${recentHistory}
+Reply concisely and concretely, 2-5 sentences unless the concept needs more. Plain text only.`;
+      state.chatHistory.push({ role: 'assistant', content: (await claudeCall(prompt, 500)).trim() });
+    } catch (e) { state.chatHistory.push({ role: 'assistant', content: 'Sorry, I had trouble responding. Try again.' }); }
+    state.loadingChat = false; await saveState(); render();
+  }
+
+  async function logSession(status) {
+    const today = state.sessions.find(s => s.day === state.currentDay && s.status === 'pending');
+    if (!today) return;
+    today.status = status;
+    today.actualDuration = status === 'skipped' ? 0 : (parseInt(document.getElementById('vl-actual-duration').value) || today.plannedDuration);
+    today.actualDifficulty = status === 'skipped' ? null : document.getElementById('vl-actual-difficulty').value;
+    today.note = document.getElementById('vl-note').value || '';
+    recordReadinessSnapshot(); await saveState(); render();
+  }
+  async function advanceDay() { state.currentDay += 1; await saveState(); await generateNextPlan(); }
+
+  async function startGoal() {
+    const title = document.getElementById('vl-goal-title').value.trim();
+    const subject = document.getElementById('vl-goal-subject').value.trim();
+    const targetDate = document.getElementById('vl-goal-date').value;
+    const topicsRaw = document.getElementById('vl-goal-topics').value.trim();
+    if (!title || !subject || !topicsRaw) { alert('Fill in the goal title, subject, and at least one topic.'); return; }
+    state.goal = { title, subject, targetDate: targetDate || 'no fixed date', topics: topicsRaw.split('\n').map(t => t.trim()).filter(Boolean) };
+    state.view = 'dashboard'; await saveState(); await generateNextPlan();
+  }
+  async function resetAll() { if (!confirm('Reset all data and start over?')) return; state = defaultState(); await saveState(); render(); }
+
+  function switchTab(tab) {
+    state.activeTab = tab;
+    if (tab === 'room' && state.roomMessages.length === 0) loadRoomMessages(); else render();
+  }
+  function jumpToAction(topic) {
+    state.activeTab = 'tests'; state.selectedQuizTopic = topic; quizAnswers = {}; render();
+  }
+
+  // ---- Rendering ----
+  function render() { if (state.view === 'onboarding') renderOnboarding(); else renderDashboard(); }
+
+  function renderOnboarding() {
+    root.innerHTML = `
+      <div class="vl-wrap">
+        <div class="vl-header"><div><div class="vl-title">Vellum</div><div class="vl-tagline">the study agent that remembers what you actually did</div></div></div>
+        <div class="vl-card">
+          <div class="vl-eyebrow">Set up your goal</div><h2>What are you studying for?</h2>
+          <label for="vl-goal-title">Goal title</label><input id="vl-goal-title" placeholder="e.g. Physics mid-term" />
+          <label for="vl-goal-subject">Subject</label><input id="vl-goal-subject" placeholder="e.g. Physics" />
+          <label for="vl-goal-date">Target date (optional)</label><input id="vl-goal-date" type="date" />
+          <label for="vl-goal-topics">Topics — one per line</label>
+          <textarea id="vl-goal-topics" placeholder="Motion&#10;Speed and Velocity&#10;Acceleration&#10;Equations of Motion"></textarea>
+          <div style="margin-top:16px;"><button class="vl-btn-primary" onclick="window.__vellumStart()">Generate my first plan</button></div>
+        </div>
+      </div>`;
+  }
+
+  function renderDashboard() {
+    const tabs = [
+      { id: 'dashboard', label: 'Dashboard' }, { id: 'plan', label: 'Today' }, { id: 'tests', label: 'Tests' },
+      { id: 'teachback', label: 'Teach Back' }, { id: 'insights', label: 'Insights' }, { id: 'optimizer', label: 'Optimizer' },
+      { id: 'flashcards', label: 'Flashcards' }, { id: 'room', label: 'Study Room' }, { id: 'chat', label: 'Ask Vellum' }, { id: 'ledger', label: 'Pod & Ledger' }
+    ];
+    root.innerHTML = `
+      <div class="vl-wrap">
+        <div class="vl-header">
+          <div><div class="vl-title">Vellum</div><div class="vl-tagline">${escapeHtml(state.goal.title)} &middot; ${escapeHtml(state.goal.subject)}</div></div>
+          <div class="vl-day-badge">DAY ${state.currentDay}</div>
+        </div>
+        <div class="vl-tabs">${tabs.map(t => `<button class="vl-tab ${state.activeTab === t.id ? 'active' : ''}" onclick="window.__vellumTab('${t.id}')">${t.label}</button>`).join('')}</div>
+        <div id="vl-tab-content"></div>
+      </div>`;
+    const content = document.getElementById('vl-tab-content');
+    const renderers = { dashboard: renderDashboardTab, plan: renderPlanTab, tests: renderTestsTab, teachback: renderTeachBackTab, insights: renderInsightsTab, optimizer: renderOptimizerTab, flashcards: renderFlashcardsTab, room: renderRoomTab, chat: renderChatTab, ledger: renderLedgerTab };
+    content.innerHTML = renderers[state.activeTab] ? renderers[state.activeTab]() : renderDashboardTab();
+    if (state.activeTab === 'chat') { const log = document.getElementById('vl-chat-log'); if (log) log.scrollTop = log.scrollHeight; }
+  }
+
+  function renderDashboardTab() {
+    const readiness = computeReadiness();
+    const health = academicHealth();
+    const action = computeRecommendedAction();
+    const whatChanged = whatChangedText();
+    const alert = classConceptAlert();
+    const recurring = recurringMisconceptions();
+    const weakTopics = state.goal.topics.filter(t => { const r = computeRetention(t, state.currentDay); return r && r.retention < 50; });
+    const prereqGaps = state.goal.topics.filter(t => weakPrerequisitesFor(t).length > 0);
+
+    let html = `<div class="vl-card">
+      <div class="vl-eyebrow">Exam readiness</div>
+      <div class="vl-hero-ring-wrap">
+        <div class="vl-readiness-score">${readiness.score}%</div>
+        <div class="vl-readiness-side">
+          <div class="vl-readiness-status">${readiness.statusLabel}</div>
+          <div style="margin-top:8px;"><span class="vl-health-badge vl-health-${health.level}">${health.label}</span></div>
+          ${whatChanged ? `<div class="vl-note" style="margin-top:8px;">${escapeHtml(whatChanged)}</div>` : ''}
+        </div>
+      </div>
+    </div>`;
+
+    if (alert) {
+      html += `<div class="vl-alert-banner"><div class="vl-alert-icon">\u26a0\ufe0f</div><div class="vl-alert-text"><span class="vl-alert-label">Class concept alert</span>Both pod members are also finding <strong>${escapeHtml(alert.topic)}</strong> difficult — might be worth starting a group session in the Study Room.</div></div>`;
+    }
+
+    if (action) {
+      html += `<div class="vl-card">
+        <div class="vl-eyebrow">Today's highest-impact study</div>
+        <div class="vl-action-card">
+          <div class="vl-action-topic">${escapeHtml(action.topic)}</div>
+          <div class="vl-action-reason">${escapeHtml(action.reason)}</div>
+          <div class="vl-action-steps">${escapeHtml(action.steps)}</div>
+          <button class="vl-btn-primary vl-btn-small" onclick="window.__vellumJumpAction('${escapeJs(action.topic)}')">Start now</button>
+        </div>
+      </div>`;
+    }
+
+    html += `<div class="vl-card"><div class="vl-eyebrow">Attention needed</div><h2>What's worth knowing</h2><ul class="vl-attention-list">`;
+    if (weakTopics.length) html += `<li>${weakTopics.length} topic(s) approaching the retention threshold: ${weakTopics.map(escapeHtml).join(', ')}</li>`;
+    if (prereqGaps.length) html += `<li>${prereqGaps.length} prerequisite gap(s) detected</li>`;
+    if (recurring.length) html += recurring.map(r => `<li>Recurring misconception: ${escapeHtml(r.errorType)} (${r.count}x)</li>`).join('');
+    if (weakTopics.length === 0 && prereqGaps.length === 0 && recurring.length === 0) html += `<li>Nothing urgent right now — keep the streak going.</li>`;
+    html += `</ul></div>`;
+    return html;
+  }
+
+  function renderPlanTab() {
+    const today = state.sessions.find(s => s.day === state.currentDay);
+    const isPending = today && today.status === 'pending';
+    const canAdvance = today && today.status !== 'pending';
+    const proactiveNudge = computeProactiveNudge();
+    let html = '';
+    if (proactiveNudge && !state.loading) html += `<div class="vl-nudge-banner"><div class="vl-nudge-icon">&#10086;</div><div class="vl-nudge-text"><span class="vl-nudge-label">${proactiveNudge.label}</span>${escapeHtml(proactiveNudge.text)}</div></div>`;
+    if (state.loading) { html += '<div class="vl-loading">the agent is reviewing your history and drafting today\'s plan...</div>'; return html; }
+    if (today) {
+      const entry = state.decisionLog.find(d => d.day === state.currentDay);
+      html += `<div class="vl-card">
+        <div class="vl-eyebrow">Today's plan</div>
+        <div class="vl-plan-topic">${escapeHtml(today.topic)}</div>
+        <div class="vl-plan-meta"><span>${today.plannedDuration} min</span><span class="vl-pill">${today.difficulty}</span>${today.status !== 'pending' ? `<span class="vl-status-badge vl-status-${today.status}">${today.status}</span>` : ''}</div>
+        ${entry ? `<div class="vl-reasoning">${escapeHtml(entry.reasoning)}</div>` : ''}
+        ${isPending ? renderLogForm() : renderLoggedSummary(today)}
+        ${isPending ? renderCorrectionUI() : ''}
+      </div>`;
+    }
+    if (canAdvance) html += `<div style="text-align:center; margin: -6px 0 22px;"><button class="vl-btn-primary" onclick="window.__vellumAdvance()">Advance to Day ${state.currentDay + 1} &rarr;</button></div>`;
+    return html;
+  }
+
+  function renderCorrectionUI() {
+    if (!state.showCorrectionInput) return `<div class="vl-correction-toggle"><button class="vl-btn-ghost vl-btn-small" onclick="window.__vellumToggleCorrection()">This doesn't feel right</button></div>`;
+    return `<div class="vl-correction-box"><label for="vl-correction-reason">What's off about today's plan?</label>
+      <textarea id="vl-correction-reason" placeholder="e.g. too long today, I already know this topic well"></textarea>
+      <div class="vl-log-actions"><button class="vl-btn-primary vl-btn-small" onclick="window.__vellumSubmitCorrection()">Send to agent</button><button class="vl-btn-ghost vl-btn-small" onclick="window.__vellumToggleCorrection()">Cancel</button></div></div>`;
+  }
+
+  function renderTestsTab() {
+    let html = `<div class="vl-card"><div class="vl-eyebrow">Pick a topic</div><h2>Tests</h2><div class="vl-log-actions">`;
+    state.goal.topics.forEach(t => {
+      html += `<button class="${state.selectedQuizTopic === t ? 'vl-btn-primary' : 'vl-btn-ghost'} vl-btn-small" onclick="window.__vellumSelectQuizTopic('${escapeJs(t)}')">${escapeHtml(t)}</button>`;
+    });
+    html += `</div></div>`;
+
+    if (!state.selectedQuizTopic) { html += `<div class="vl-empty">Pick a topic above to generate or take a quiz.</div>`; return html; }
+
+    const topic = state.selectedQuizTopic;
+    const quiz = state.quizzes[topic];
+    const isLoadingQuiz = state.loadingQuiz === topic;
+
+    html += `<div class="vl-card"><div class="vl-eyebrow">${escapeHtml(topic)}</div>`;
+    if (!quiz) {
+      html += `<h2>No quiz yet</h2><button class="vl-btn-primary" ${isLoadingQuiz ? 'disabled' : ''} onclick="window.__vellumGenQuiz('${escapeJs(topic)}')">${isLoadingQuiz ? 'Generating...' : 'Generate 5-question quiz'}</button></div>`;
+      return html;
+    }
+
+    if (quiz.lastResult) {
+      const r = quiz.lastResult;
+      html += `<h2>Result</h2><div class="vl-score-badge">${r.score}%</div><div class="vl-note" style="margin-bottom:14px;">${r.answered.filter(a => a.correct).length} of ${r.total} correct</div>`;
+      r.answered.forEach((a, i) => {
+        const q = quiz.questions[a.qIndex];
+        html += `<div class="vl-quiz-q"><div class="vl-quiz-qtext">${i + 1}. ${escapeHtml(q.question)}</div>`;
+        q.options.forEach((opt, oi) => {
+          let cls = 'vl-quiz-opt';
+          if (oi === a.correctIndex) cls += ' correct'; else if (oi === a.selectedIndex) cls += ' incorrect';
+          html += `<div class="${cls}">${escapeHtml(opt)}</div>`;
+        });
+        if (!a.correct && a.autopsy) {
+          const ap = a.autopsy;
+          html += `<div class="vl-autopsy-box">
+            <div class="vl-autopsy-title">Concept Autopsy</div>
+            <div>${escapeHtml(ap.explanation)}</div>
+            <div class="vl-autopsy-meta">Error type: ${escapeHtml(ap.errorType)} &middot; Root topic: ${escapeHtml(ap.rootTopic)} &middot; Confidence: ${ap.confidence}%</div>
+            <div style="font-weight:600; font-size:12.5px;">Recommended: ${escapeHtml(ap.recommendedAction)}</div>
+          </div>`;
+        } else if (!a.correct && state.loadingGrading) {
+          html += `<div class="vl-loading">diagnosing...</div>`;
+        }
+        html += `</div>`;
+      });
+      html += `<button class="vl-btn-ghost vl-btn-small" onclick="window.__vellumGenQuiz('${escapeJs(topic)}')">Retake with new questions</button>`;
+      html += `</div>`;
+      return html;
+    }
+
+    // in-progress quiz
+    quiz.questions.forEach((q, i) => {
+      html += `<div class="vl-quiz-q"><div class="vl-quiz-qtext">${i + 1}. ${escapeHtml(q.question)}</div>`;
+      q.options.forEach((opt, oi) => {
+        const selected = quizAnswers[i] === oi;
+        html += `<div class="vl-quiz-opt ${selected ? 'selected' : ''}" onclick="window.__vellumSelectAnswer(${i}, ${oi})">${escapeHtml(opt)}</div>`;
+      });
+      html += `</div>`;
+    });
+    html += `<button class="vl-btn-primary" ${state.loadingGrading ? 'disabled' : ''} onclick="window.__vellumSubmitQuiz('${escapeJs(topic)}')">${state.loadingGrading ? 'Grading...' : 'Submit quiz'}</button></div>`;
+    return html;
+  }
+
+  function renderTeachBackTab() {
+    let html = `<div class="vl-card"><div class="vl-eyebrow">Explain it in your own words</div><h2>Teach It Back</h2><div class="vl-log-actions">`;
+    state.goal.topics.forEach(t => {
+      html += `<button class="${state.selectedTBTopic === t ? 'vl-btn-primary' : 'vl-btn-ghost'} vl-btn-small" onclick="window.__vellumSelectTBTopic('${escapeJs(t)}')">${escapeHtml(t)}</button>`;
+    });
+    html += `</div></div>`;
+
+    if (!state.selectedTBTopic) { html += `<div class="vl-empty">Pick a topic above.</div>`; return html; }
+    const topic = state.selectedTBTopic;
+    const attempts = state.teachBack[topic] || [];
+    const isLoading = state.loadingTeachBack === topic;
+
+    html += `<div class="vl-card"><div class="vl-eyebrow">${escapeHtml(topic)}</div><h2>Teach this concept to a 10-year-old</h2>
+      <textarea id="vl-tb-input" placeholder="Explain it as simply as you can, in your own words..."></textarea>
+      <div style="margin-top:10px;"><button class="vl-btn-primary" ${isLoading ? 'disabled' : ''} onclick="window.__vellumSubmitTB('${escapeJs(topic)}')">${isLoading ? 'Grading...' : 'Submit'}</button></div>`;
+
+    if (attempts.length > 0) {
+      const latest = attempts[attempts.length - 1];
+      html += `<div style="margin-top:18px;">
+        <div class="vl-tb-metrics">
+          <div class="vl-tb-metric"><div class="vl-tb-metric-val">${latest.accuracy}%</div><div class="vl-tb-metric-label">Accuracy</div></div>
+          <div class="vl-tb-metric"><div class="vl-tb-metric-val">${latest.clarity}%</div><div class="vl-tb-metric-label">Clarity</div></div>
+          <div class="vl-tb-metric"><div class="vl-tb-metric-val">${latest.completeness}%</div><div class="vl-tb-metric-label">Completeness</div></div>
+        </div>
+        ${latest.misconception ? `<div class="vl-autopsy-box"><div class="vl-autopsy-title">Misconception detected</div>${escapeHtml(latest.misconception)}</div>` : ''}
+        ${latest.missingConcept ? `<div class="vl-note" style="margin-top:8px;">Missing concept: ${escapeHtml(latest.missingConcept)}</div>` : ''}
+        ${attempts.length > 1 ? `<div class="vl-note" style="margin-top:8px;">Attempt ${attempts.length} &middot; accuracy changed ${latest.accuracy - attempts[attempts.length - 2].accuracy >= 0 ? '+' : ''}${latest.accuracy - attempts[attempts.length - 2].accuracy}% since last attempt.</div>` : ''}
+      </div>`;
+    }
+    html += `</div>`;
+
+    const ghostSummaries = state.goal.topics.map(t => computeGhostKnowledge(t)).filter(g => g);
+    if (ghostSummaries.length) {
+      html += `<div class="vl-card"><div class="vl-eyebrow">Recognition vs. recall</div><h2>Ghost knowledge</h2>`;
+      ghostSummaries.forEach(g => {
+        html += `<div class="vl-ghost-item">${g.flagged ? '\u26a0\ufe0f ' : ''}<strong>${escapeHtml(g.topic)}</strong> — recognition ${g.recognition}%, recall ${g.recall}%${g.flagged ? ' <span style="color:var(--rust);">— ghost knowledge detected</span>' : ''}</div>`;
+      });
+      html += `<div class="vl-note">Recognition comes from quiz score; recall comes from your Teach It Back accuracy. A large gap means you can pick the right answer but can't produce it independently yet.</div></div>`;
+    }
+    return html;
+  }
+
+  function renderInsightsTab() {
+    const readiness = computeReadiness();
+    let html = `<div class="vl-card">
+      <div class="vl-eyebrow">Synthesized live</div><h2>Exam readiness</h2>
+      <div class="vl-readiness-block">
+        <div class="vl-readiness-score">${readiness.score}%</div>
+        <div class="vl-readiness-side">
+          <div class="vl-readiness-label">Status</div>
+          <div class="vl-readiness-status">${readiness.statusLabel}${state.goal.targetDate && state.goal.targetDate !== 'no fixed date' ? ` &middot; target: ${escapeHtml(state.goal.targetDate)}` : ''}</div>
+          <div class="vl-readiness-breakdown">retention ${readiness.avgRetention}% &middot; coverage ${readiness.coverage}% &middot; consistency ${readiness.consistency}%${readiness.ghostCount ? ` &middot; ${readiness.ghostCount} ghost knowledge flag(s)` : ''}</div>
+        </div>
+      </div></div>`;
+
+    html += `<div class="vl-card"><div class="vl-eyebrow">Decay model &middot; per topic, boosted by quiz evidence</div><h2>Retention forecast</h2>`;
+    state.goal.topics.forEach(t => {
+      const r = computeRetention(t, state.currentDay);
+      const pct = r ? r.retention : 0;
+      html += `<div class="vl-retention-row"><span class="vl-retention-name">${escapeHtml(t)}</span>
+        <div class="vl-retention-bar"><div class="vl-retention-fill" style="width:${pct}%; background:${r ? retentionColor(pct) : 'var(--line)'};"></div></div>
+        <span class="vl-retention-pct">${r ? pct + '% \u00b7 ' + r.daysSince + 'd ago' : 'not studied'}</span></div>`;
+    });
+    html += `<div class="vl-note">Estimated from days since last review/quiz and how difficult it felt — a real decay model, not an AI guess.</div></div>`;
+
+    html += `<div class="vl-card"><div class="vl-eyebrow">Inferred by Vellum &middot; drives daily topic priority</div><h2>Topic dependency map</h2>`;
+    if (!state.dependencyMap) {
+      html += `<button class="vl-btn-primary vl-btn-small" ${state.loadingMap ? 'disabled' : ''} onclick="window.__vellumBuildMap()">${state.loadingMap ? 'Mapping...' : 'Build dependency map'}</button>`;
+    } else {
+      state.dependencyMap.forEach(d => {
+        const r = computeRetention(d.topic, state.currentDay);
+        const isWeak = r && r.retention < 50;
+        const weakDeps = weakPrerequisitesFor(d.topic);
+        html += `<div class="vl-dep-item">
+          <div class="vl-dep-topic ${isWeak ? 'weak' : 'ok'}">${escapeHtml(d.topic)}${isWeak ? ' \u26a0\ufe0f' : ''}</div>
+          ${d.dependsOn && d.dependsOn.length ? `<div class="vl-dep-chain">${d.dependsOn.map(dep => {
+            const depR = computeRetention(dep, state.currentDay);
+            const depWeak = depR && depR.retention < 50;
+            return `<span class="vl-dep-node ${depWeak ? 'weak' : ''}">${escapeHtml(dep)}</span><span class="vl-dep-arrow">&rarr;</span>`;
+          }).join('')}<span class="vl-dep-node ${isWeak ? 'weak' : ''}">${escapeHtml(d.topic)}</span></div>` : `<div class="vl-dep-req">no prerequisites</div>`}
+          ${weakDeps.length ? `<div class="vl-dep-req weak-flag">root cause candidate: weak prerequisite "${escapeHtml(weakDeps[0])}"</div>` : ''}
+        </div>`;
+      });
+      html += `<div style="margin-top:10px;"><button class="vl-btn-ghost vl-btn-small" ${state.loadingMap ? 'disabled' : ''} onclick="window.__vellumBuildMap()">${state.loadingMap ? 'Mapping...' : 'Rebuild map'}</button></div>`;
+    }
+    html += `</div>`;
+    return html;
+  }
+
+  function renderOptimizerTab() {
+    let html = `<div class="vl-card"><div class="vl-eyebrow">Transparent projection model</div><h2>What-if simulator</h2>
+      <div class="vl-note" style="margin-bottom:6px;">Current exam readiness: ${computeReadiness().score}%</div>
+      <div class="vl-scenario-row">
+        <button class="vl-btn-ghost vl-btn-small" onclick="window.__vellumWhatIf('15')">15 min/day</button>
+        <button class="vl-btn-ghost vl-btn-small" onclick="window.__vellumWhatIf('30')">30 min/day</button>
+        <button class="vl-btn-ghost vl-btn-small" onclick="window.__vellumWhatIf('60')">1 hour/day</button>
+        <button class="vl-btn-ghost vl-btn-small" onclick="window.__vellumWhatIf('120')">2 hours/day</button>
+        <button class="vl-btn-rust vl-btn-small" onclick="window.__vellumWhatIf('none-7')">No studying for 7 days</button>
+      </div>
+      <div id="vl-whatif-output"></div>
+      <div class="vl-note">Projection model, not a live simulation — the "no studying" scenario uses the real retention decay math projected forward; the study scenarios use a simplified diminishing-returns estimate.</div>
+    </div>`;
+
+    html += `<div class="vl-card"><div class="vl-eyebrow">Highest-impact allocation</div><h2>Minimum study optimizer</h2>
+      <label for="vl-optimizer-minutes">How many minutes do you have?</label>
+      <input id="vl-optimizer-minutes" type="number" min="10" max="300" placeholder="e.g. 120" />
+      <div style="margin-top:10px;"><button class="vl-btn-primary" ${state.loadingOptimizer ? 'disabled' : ''} onclick="window.__vellumOptimize()">${state.loadingOptimizer ? 'Optimizing...' : 'Build my session'}</button></div>`;
+    if (state.minimumPlan) {
+      html += `<div style="margin-top:16px;"><div class="vl-eyebrow">${state.minimumPlan.minutes} minutes available</div>`;
+      state.minimumPlan.blocks.forEach(b => {
+        html += `<div class="vl-optimizer-block"><span class="vl-optimizer-mins">${b.minutes}m</span> — ${escapeHtml(b.topic)} ${b.retention !== null ? `<span class="vl-note">(retention ${b.retention}%)</span>` : `<span class="vl-note">(not yet tested)</span>`}</div>`;
+      });
+      html += `<div class="vl-reasoning" style="margin-top:10px;">${escapeHtml(state.minimumPlan.explanation)}</div></div>`;
+    }
+    html += `</div>`;
+    return html;
+  }
+
+  function renderFlashcardsTab() {
+    let html = `<div class="vl-card"><div class="vl-eyebrow">Generated by Vellum</div><h2>Flashcards by topic</h2>`;
+    state.goal.topics.forEach(topic => {
+      const cards = state.flashcards[topic]; const isLoading = state.loadingFlashcards === topic;
+      html += `<div class="vl-topic-block"><div class="vl-topic-header"><div class="vl-topic-name">${escapeHtml(topic)}</div>
+        <button class="vl-btn-ghost vl-btn-small" ${isLoading ? 'disabled' : ''} onclick="window.__vellumFlashcards('${escapeJs(topic)}')">${isLoading ? 'Generating...' : (cards ? 'Regenerate' : 'Generate flashcards')}</button></div>
+        ${cards ? `<div class="vl-flashcard-grid">${cards.map((c, i) => {
+          const key = topic + '|' + i; const flipped = !!flippedCards[key];
+          return `<div class="vl-flashcard" onclick="window.__vellumFlip('${escapeJs(topic)}', ${i})"><div><div class="${flipped ? 'vl-flashcard-back' : 'vl-flashcard-front'}">${escapeHtml(flipped ? c.back : c.front)}</div><div class="vl-flashcard-hint">${flipped ? 'click to see question' : 'click to reveal answer'}</div></div></div>`;
+        }).join('')}</div>` : `<div class="vl-note">No flashcards yet for this topic.</div>`}</div>`;
+    });
+    html += `</div>`; return html;
+  }
+
+  function renderRoomTab() {
+    const alert = classConceptAlert();
+    let html = '';
+    if (alert) html += `<div class="vl-alert-banner"><div class="vl-alert-icon">\u26a0\ufe0f</div><div class="vl-alert-text"><span class="vl-alert-label">Class concept alert</span><strong>${escapeHtml(alert.topic)}</strong> is currently a shared struggle in your pod — a good candidate for a group session.</div></div>`;
+    html += `<div class="vl-card"><div class="vl-eyebrow">Shared with anyone in this goal's room</div><h2>Study Room</h2>
+      <div class="vl-note" style="margin-bottom:14px;">Notes here are visible to anyone who opens Vellum under the goal name "${escapeHtml(state.goal.title)}" — a real shared space, not private.</div>
+      <label for="vl-room-name">Your name</label><input id="vl-room-name" placeholder="e.g. ${state.displayName ? escapeHtml(state.displayName) : 'Your name'}" value="${escapeHtml(state.displayName)}" />
+      <label for="vl-room-text">Share a note or question</label><textarea id="vl-room-text" placeholder="e.g. Anyone have a good way to remember this?"></textarea>
+      <div style="margin-top:10px;"><button class="vl-btn-primary" onclick="window.__vellumRoomPost()">Post to room</button></div></div>
+      <div class="vl-card"><div class="vl-eyebrow">Room feed</div><h2>Notes &amp; questions</h2>`;
+    if (state.loadingRoom) html += `<div class="vl-loading">loading room...</div>`;
+    else if (state.roomMessages.length === 0) html += `<div class="vl-empty">No notes yet — be the first to post.</div>`;
+    else html += state.roomMessages.slice().reverse().map(m => `<div class="vl-room-msg"><span class="vl-room-author">${escapeHtml(m.author)}</span><span class="vl-room-time">${formatTime(m.ts)}</span><div class="vl-room-text">${escapeHtml(m.text)}</div></div>`).join('');
+    html += `<div style="margin-top:12px;"><button class="vl-btn-ghost vl-btn-small" onclick="window.__vellumRoomRefresh()">Refresh</button></div></div>`;
+    return html;
+  }
+
+  function renderChatTab() {
+    let html = `<div class="vl-card"><div class="vl-eyebrow">Grounded in your goal &amp; topics</div><h2>Ask Vellum</h2><div class="vl-chat-log" id="vl-chat-log">`;
+    if (state.chatHistory.length === 0) html += `<div class="vl-empty">Ask about a topic, or ask for study tips.</div>`;
+    else html += state.chatHistory.map(m => `<div class="vl-chat-msg"><div class="vl-chat-role ${m.role}">${m.role === 'user' ? 'You' : 'Vellum'}</div><div class="vl-chat-bubble">${escapeHtml(m.content)}</div></div>`).join('');
+    if (state.loadingChat) html += `<div class="vl-loading">Vellum is thinking...</div>`;
+    html += `</div><div class="vl-chat-input-row"><input id="vl-chat-input" placeholder="e.g. Can you explain this simply?" onkeydown="if(event.key==='Enter'){window.__vellumChatSend();}" /><button class="vl-btn-primary" ${state.loadingChat ? 'disabled' : ''} onclick="window.__vellumChatSend()">Send</button></div></div>`;
+    return html;
+  }
+
+  function renderLedgerTab() {
+    const pod = podStatusForDay(state.currentDay);
+    const userPct = userCompletionPct();
+    const ahead = podAheadCount(state.currentDay, userPct);
+    let html = `<div class="vl-card"><div class="vl-eyebrow">Study pod &middot; simulated for demo</div><h2>Pod activity</h2>`;
+    pod.forEach(p => {
+      html += `<div class="vl-pod-member"><div class="vl-pod-row"><span class="vl-pod-name">${p.name}</span><div class="vl-pod-bar"><div class="vl-pod-bar-fill" style="width:${p.pct}%"></div></div><span class="vl-pod-pct">${p.pct}%</span></div><div class="vl-pod-feed">${p.name} ${p.lastActivity}</div></div>`;
+    });
+    if (state.sessions.length > 0) html += ahead === 0 ? `<div class="vl-pod-insight">You're currently ahead of both pod members. Nicely done.</div>` : `<div class="vl-pod-insight">${ahead} of ${POD_NAMES.length} pod members are ahead of your pace right now.</div>`;
+    html += `<div class="vl-note">Pod data is mocked for this prototype.</div></div>`;
+
+    html += `<div class="vl-card"><div class="vl-eyebrow">Agent decision ledger &middot; the receipts</div><h2>Reasoning trail</h2>`;
+    if (state.decisionLog.length === 0) html += `<div class="vl-empty">No decisions logged yet.</div>`;
+    else html += state.decisionLog.map(d => `<div class="vl-ledger-entry"><div class="vl-ledger-num vl-mono">DAY ${d.day}</div><div class="vl-ledger-body">
+      <div class="vl-ledger-title">${escapeHtml(d.topic)}${d.type === 'correction' ? '<span class="vl-ledger-correction-badge">corrected</span>' : ''}</div>
+      ${d.type === 'correction' ? `<div class="vl-ledger-reason" style="margin-bottom:3px;">student said: "${escapeHtml(d.reasonGiven)}"</div>` : ''}
+      <div class="vl-ledger-reason">${escapeHtml(d.reasoning)}</div>${d.podNote ? `<div class="vl-ledger-reason" style="margin-top:4px; color: var(--sage);">${escapeHtml(d.podNote)}</div>` : ''}
+    </div></div>`).join('');
+    html += `</div><div style="text-align:center;"><button class="vl-btn-ghost" onclick="window.__vellumReset()">Reset prototype data</button></div>`;
+    return html;
+  }
+
+  function renderLogForm() {
+    return `<label for="vl-actual-duration">Minutes actually studied</label><input id="vl-actual-duration" type="number" min="0" max="180" placeholder="e.g. 25" />
+      <label for="vl-actual-difficulty">How did it feel?</label><select id="vl-actual-difficulty"><option value="easy">Easier than expected</option><option value="medium" selected>About right</option><option value="hard">Harder than expected</option></select>
+      <label for="vl-note">Note (optional)</label><input id="vl-note" placeholder="anything worth remembering" />
+      <div class="vl-log-actions"><button class="vl-btn-sage" onclick="window.__vellumLog('done')">Mark done</button><button class="vl-btn-ghost" onclick="window.__vellumLog('partial')">Partial</button><button class="vl-btn-rust" onclick="window.__vellumLog('skipped')">Skipped</button></div>`;
+  }
+  function renderLoggedSummary(today) {
+    return `<div class="vl-note" style="margin-top:12px;">Logged: ${today.actualDuration}min${today.actualDifficulty ? ', felt ' + today.actualDifficulty : ''}${today.note ? ' — "' + escapeHtml(today.note) + '"' : ''}</div>`;
+  }
+  function formatTime(iso) { try { return new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; } }
+  function escapeHtml(str) { const div = document.createElement('div'); div.textContent = str == null ? '' : str; return div.innerHTML; }
+  function escapeJs(str) { return String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
+
+  function renderWhatIfInline(kind, projected) {
+    const box = document.getElementById('vl-whatif-output');
+    if (!box) return;
+    const base = computeReadiness().score;
+    const labelMap = { '15': '15 min/day', '30': '30 min/day', '60': '1 hour/day', '120': '2 hours/day', 'none-7': 'no studying for 7 days' };
+    box.innerHTML = `<div class="vl-whatif-result"><span>${labelMap[kind]}:</span><span class="vl-whatif-arrow">${base}% &rarr;</span><strong style="color:${projected >= base ? 'var(--sage)' : 'var(--rust)'}">${projected}%</strong></div>` + (box.innerHTML || '');
+  }
+
+  window.__vellumStart = startGoal;
+  window.__vellumLog = logSession;
+  window.__vellumAdvance = advanceDay;
+  window.__vellumReset = resetAll;
+  window.__vellumTab = switchTab;
+  window.__vellumFlashcards = generateFlashcards;
+  window.__vellumFlip = toggleFlip;
+  window.__vellumRoomPost = postRoomMessage;
+  window.__vellumRoomRefresh = loadRoomMessages;
+  window.__vellumChatSend = sendChatMessage;
+  window.__vellumToggleCorrection = toggleCorrectionInput;
+  window.__vellumSubmitCorrection = submitCorrection;
+  window.__vellumBuildMap = buildDependencyMap;
+  window.__vellumSelectQuizTopic = (t) => { state.selectedQuizTopic = t; quizAnswers = {}; render(); };
+  window.__vellumGenQuiz = generateQuiz;
+  window.__vellumSelectAnswer = selectQuizAnswer;
+  window.__vellumSubmitQuiz = submitQuiz;
+  window.__vellumSelectTBTopic = (t) => { state.selectedTBTopic = t; render(); };
+  window.__vellumSubmitTB = submitTeachBack;
+  window.__vellumOptimize = runOptimizer;
+  window.__vellumWhatIf = (kind) => { const projected = whatIfScenario(kind); renderWhatIfInline(kind, projected); };
+  window.__vellumJumpAction = jumpToAction;
+
+  loadState();
+})();
+</script>
+</body>
+</html>

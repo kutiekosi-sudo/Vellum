@@ -1,0 +1,8 @@
+{
+  "name": "vellum",
+  "version": "1.0.0",
+  "description": "Vellum — the study agent that remembers what you actually did",
+  "dependencies": {
+    "@netlify/blobs": "^7.0.0"
+  }
+}
