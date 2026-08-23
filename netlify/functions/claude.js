@@ -28,7 +28,10 @@ exports.handler = async function (event) {
         },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { maxOutputTokens: max_tokens || 500 }
+          generationConfig: {
+            maxOutputTokens: max_tokens ? max_tokens * 3 : 1500,
+            thinkingConfig: { thinkingBudget: 0 }
+          }
         })
       }
     );
@@ -39,12 +42,23 @@ exports.handler = async function (event) {
       return { statusCode: response.status, body: JSON.stringify({ error: data.error ? data.error.message : 'Gemini API error' }) };
     }
 
-    const text = data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts
-      ? data.candidates[0].content.parts.map(p => p.text || '').join('')
+    const candidate = data.candidates && data.candidates[0];
+    const text = candidate && candidate.content && candidate.content.parts
+      ? candidate.content.parts.map(p => p.text || '').join('')
       : '';
 
-    // reshape into the same {content: [{text: "..."}]} format the frontend already parses
-    return { statusCode: 200, body: JSON.stringify({ content: [{ text }] }) };
+    // reshape into the same {content: [{text: "..."}]} format the frontend already parses,
+    // plus debug info so truncation causes are visible instead of guessed at
+    return {
+      statusCode: 200,
+      body: JSON.stringify({
+        content: [{ text }],
+        _debug: {
+          finishReason: candidate ? candidate.finishReason : null,
+          usage: data.usageMetadata || null
+        }
+      })
+    };
   } catch (e) {
     return { statusCode: 500, body: JSON.stringify({ error: e.message }) };
   }
