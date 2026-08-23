@@ -459,6 +459,7 @@
   }
 
   // ---- Claude API helper ----
+  let lastCallDebug = null;
   async function claudeCall(prompt, maxTokens) {
     const response = await fetch("/.netlify/functions/claude", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -466,6 +467,7 @@
     });
     const data = await response.json();
     if (data.error) throw new Error(data.error);
+    lastCallDebug = data._debug || null;
     return data.content.map(b => b.text || '').join('');
   }
 
@@ -492,7 +494,8 @@ Respond with ONLY a raw JSON object, no markdown fences:
     try {
       return JSON.parse(clean);
     } catch (e) {
-      throw new Error('Bad response from model (' + clean.length + ' chars): "' + clean.slice(0, 200) + '"');
+      const debugInfo = lastCallDebug ? ` [finishReason: ${lastCallDebug.finishReason}, usage: ${JSON.stringify(lastCallDebug.usage)}]` : '';
+      throw new Error('Bad response from model (' + clean.length + ' chars): "' + clean.slice(0, 200) + '"' + debugInfo);
     }
   }
 
