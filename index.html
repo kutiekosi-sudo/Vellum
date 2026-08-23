@@ -488,7 +488,12 @@ Prioritize topics with low retention or flagged ghost knowledge, but only if the
 Respond with ONLY a raw JSON object, no markdown fences:
 {"topic": "from the topics list", "duration_min": number (10-45), "difficulty": "easy"|"medium"|"hard", "reasoning": "1-2 sentences citing retention risk, prerequisites, ghost knowledge, or history", "pod_note": "1 short sentence or null"}`;
     const text = await claudeCall(prompt, 550);
-    return JSON.parse(text.replace(/```json|```/g, '').trim());
+    const clean = text.replace(/```json|```/g, '').trim();
+    try {
+      return JSON.parse(clean);
+    } catch (e) {
+      throw new Error('Bad response from model (' + clean.length + ' chars): "' + clean.slice(0, 200) + '"');
+    }
   }
 
   function buildHistorySummary() {
