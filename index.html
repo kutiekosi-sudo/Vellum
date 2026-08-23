@@ -507,7 +507,7 @@ Respond with ONLY a raw JSON object, no markdown fences:
       const result = await callAgent(buildHistorySummary(), podSummaryText(state.currentDay), state.goal, isFirst);
       state.sessions.push({ day: state.currentDay, topic: result.topic, plannedDuration: result.duration_min, difficulty: result.difficulty, status: 'pending', actualDuration: null, actualDifficulty: null, note: '' });
       state.decisionLog.unshift({ day: state.currentDay, topic: result.topic, reasoning: result.reasoning, podNote: result.pod_note, type: 'plan' });
-    } catch (e) { console.error(e); alert('The agent had trouble generating a plan. Try again.'); }
+    } catch (e) { console.error(e); alert('Plan generation failed: ' + (e.message || 'unknown error')); }
     state.loading = false; state.showCorrectionInput = false;
     recordReadinessSnapshot(); await saveState(); render();
   }
@@ -546,7 +546,7 @@ Respond with ONLY a raw JSON array: [{"topic": "exact name from list", "dependsO
       const prompt = `Generate exactly 5 study flashcards for "${topic}" within "${state.goal.subject}", for a student working toward "${state.goal.title}".
 Respond with ONLY a raw JSON array: [{"front": "question or term", "back": "concise answer (1-2 sentences)"}]`;
       state.flashcards[topic] = JSON.parse((await claudeCall(prompt, 800)).replace(/```json|```/g, '').trim());
-    } catch (e) { console.error(e); alert('Could not generate flashcards. Try again.'); }
+    } catch (e) { console.error(e); alert('Flashcard generation failed: ' + (e.message || 'unknown error')); }
     state.loadingFlashcards = null; await saveState(); render();
   }
   function toggleFlip(topic, idx) { flippedCards[topic + '|' + idx] = !flippedCards[topic + '|' + idx]; render(); }
@@ -561,7 +561,7 @@ Respond with ONLY a raw JSON array: [{"question": "...", "options": ["A","B","C"
       state.quizzes[topic] = { questions, lastResult: null };
       quizAnswers = {};
       state.selectedQuizTopic = topic;
-    } catch (e) { console.error(e); alert('Could not generate the quiz. Try again.'); }
+    } catch (e) { console.error(e); alert('Quiz generation failed: ' + (e.message || 'unknown error')); }
     state.loadingQuiz = null; await saveState(); render();
   }
 
@@ -714,7 +714,7 @@ Write one short paragraph (2-3 sentences) in Vellum's voice explaining why this 
 Conversation so far:\n${recentHistory}
 Reply concisely and concretely, 2-5 sentences unless the concept needs more. Plain text only.`;
       state.chatHistory.push({ role: 'assistant', content: (await claudeCall(prompt, 500)).trim() });
-    } catch (e) { state.chatHistory.push({ role: 'assistant', content: 'Sorry, I had trouble responding. Try again.' }); }
+    } catch (e) { state.chatHistory.push({ role: 'assistant', content: 'Sorry, I had trouble responding: ' + (e.message || 'unknown error') }); }
     state.loadingChat = false; await saveState(); render();
   }
 
