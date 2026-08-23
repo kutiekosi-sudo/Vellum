@@ -29,8 +29,7 @@ exports.handler = async function (event) {
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: {
-            maxOutputTokens: max_tokens ? max_tokens * 3 : 1500,
-            thinkingConfig: { thinkingBudget: 0 }
+            maxOutputTokens: 4096
           }
         })
       }
