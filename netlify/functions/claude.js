@@ -13,9 +13,14 @@ exports.handler = async function (event) {
   }
 
   try {
-    const { prompt, max_tokens } = JSON.parse(event.body || '{}');
+    const { prompt, max_tokens, image } = JSON.parse(event.body || '{}');
     if (!prompt) {
       return { statusCode: 400, body: JSON.stringify({ error: 'Missing prompt' }) };
+    }
+
+    const parts = [{ text: prompt }];
+    if (image && image.data && image.mimeType) {
+      parts.push({ inline_data: { mime_type: image.mimeType, data: image.data } });
     }
 
     const response = await fetch(
@@ -27,7 +32,7 @@ exports.handler = async function (event) {
           'x-goog-api-key': apiKey
         },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
+          contents: [{ parts }],
           generationConfig: {
             maxOutputTokens: 4096
           }
