@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+       <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
@@ -220,7 +220,9 @@
       loading: false, loadingFlashcards: null, loadingChat: false, loadingRoom: false, loadingMap: false,
       loadingQuiz: null, loadingGrading: false, loadingTeachBack: null, loadingOptimizer: false,
       showCorrectionInput: false, activeTab: 'dashboard', selectedQuizTopic: null, selectedTBTopic: null,
-      minimumPlan: null, roomMessages: [], view: 'onboarding'
+      minimumPlan: null, roomMessages: [], view: 'onboarding',
+      noteSets: [], loadingNoteScan: false, personalNotes: {}, selectedNotesTopic: null,
+      timerSecondsLeft: null, timerRunning: false, timerTotalSeconds: null
     };
   }
 
@@ -460,10 +462,12 @@
 
   // ---- Claude API helper ----
   let lastCallDebug = null;
-  async function claudeCall(prompt, maxTokens) {
+  async function claudeCall(prompt, maxTokens, image) {
+    const body = { prompt, max_tokens: maxTokens || 500 };
+    if (image) body.image = image;
     const response = await fetch("/.netlify/functions/claude", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt, max_tokens: maxTokens || 500 })
+      body: JSON.stringify(body)
     });
     const data = await response.json();
     if (data.error) throw new Error(data.error);
@@ -477,7 +481,7 @@
     const ghostSummary = ghostKnowledgeSummaryText();
     const prompt = `You are Vellum, an adaptive study-planning agent. Generate ONE day's study session using the student's actual history, retention forecast, topic prerequisite structure, ghost knowledge signals, and pod signal.
 
-Student goal: "${goal.title}" (subject: ${goal.subject}), target date: ${goal.targetDate}.
+Student goal: "${goal.title}" (subject: ${goal.subject}), target date: ${goal.targetDate}. Student's grade/level: ${goal.gradeLevel || 'not specified'} — calibrate difficulty and language to this level.
 Topics to cover: ${goal.topics.join(', ')}.
 ${isFirstPlan ? 'This is the very first day — no history yet.' : `Recent history (most recent last):\n${userSummary}`}
 Retention forecast per topic: ${retentionSummary}
@@ -551,7 +555,7 @@ Respond with ONLY a raw JSON array: [{"topic": "exact name from list", "dependsO
   async function generateFlashcards(topic) {
     state.loadingFlashcards = topic; render();
     try {
-      const prompt = `Generate exactly 5 study flashcards for "${topic}" within "${state.goal.subject}", for a student working toward "${state.goal.title}".
+      const prompt = `Generate exactly 5 study flashcards for "${topic}" within "${state.goal.subject}", for a student working toward "${state.goal.title}". Student's grade/level: ${state.goal.gradeLevel || 'not specified'} — calibrate vocabulary and depth to this level.
 Respond with ONLY a raw JSON array: [{"front": "question or term", "back": "concise answer (1-2 sentences)"}]`;
       state.flashcards[topic] = JSON.parse((await claudeCall(prompt, 800)).replace(/```json|```/g, '').trim());
     } catch (e) { console.error(e); alert('Flashcard generation failed: ' + (e.message || 'unknown error')); }
@@ -559,11 +563,59 @@ Respond with ONLY a raw JSON array: [{"front": "question or term", "back": "conc
   }
   function toggleFlip(topic, idx) { flippedCards[topic + '|' + idx] = !flippedCards[topic + '|' + idx]; render(); }
 
+  // ---- Photo of notes -> comprehensive flashcards (reads the whole image, not a fixed count) ----
+  function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result.split(',')[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function scanNotesPhoto() {
+    const fileInput = document.getElementById('vl-notes-photo');
+    const titleInput = document.getElementById('vl-notes-title');
+    const file = fileInput.files[0];
+    if (!file) { alert('Choose a photo of your notes first.'); return; }
+    if (file.size > 6 * 1024 * 1024) { alert('That photo is quite large — try a clearer, closer shot of one page at a time for best results.'); return; }
+
+    state.loadingNoteScan = true; render();
+    try {
+      const base64 = await fileToBase64(file);
+      const title = titleInput.value.trim() || `Notes from Day ${state.currentDay}`;
+      const prompt = `This image contains a student's handwritten or printed study notes${state.goal ? ` for "${state.goal.subject}"` : ''}. Student's level: ${state.goal && state.goal.gradeLevel ? state.goal.gradeLevel : 'not specified'} — calibrate depth and vocabulary to this level.
+
+Read everything in the image carefully. Generate AS MANY flashcards as needed to cover every distinct fact, definition, formula, or concept in the notes — do not limit yourself to a fixed number. If the notes are short, a few cards is fine; if they're dense, generate many. Also write a short 2-4 sentence plain-language breakdown summarizing what the notes cover overall.
+
+Respond with ONLY a raw JSON object, no markdown fences:
+{"summary": "2-4 sentence breakdown of what these notes cover", "cards": [{"front": "question or term", "back": "concise answer (1-2 sentences)"}]}`;
+
+      const text = await claudeCall(prompt, 500, { data: base64, mimeType: file.type || 'image/jpeg' });
+      const clean = text.replace(/```json|```/g, '').trim();
+      let result;
+      try { result = JSON.parse(clean); }
+      catch (e) { throw new Error('Could not read a clear result from the photo (' + clean.length + ' chars received). Try a clearer or better-lit photo.'); }
+
+      state.noteSets.unshift({ id: 'note-' + Date.now(), title, summary: result.summary, cards: result.cards || [], day: state.currentDay });
+      fileInput.value = ''; titleInput.value = '';
+    } catch (e) { console.error(e); alert('Could not process that photo: ' + (e.message || 'unknown error')); }
+    state.loadingNoteScan = false; await saveState(); render();
+  }
+
+  function toggleNoteFlip(setId, idx) { flippedCards['noteset:' + setId + '|' + idx] = !flippedCards['noteset:' + setId + '|' + idx]; render(); }
+
+  function deleteNoteSet(setId) {
+    if (!confirm('Delete this flashcard set?')) return;
+    state.noteSets = state.noteSets.filter(s => s.id !== setId);
+    saveState(); render();
+  }
+
   // ---- Tests: quiz generation, taking, grading, concept autopsy ----
   async function generateQuiz(topic) {
     state.loadingQuiz = topic; render();
     try {
-      const prompt = `Generate exactly 5 multiple-choice questions testing real understanding of "${topic}" within "${state.goal.subject}", for a student working toward "${state.goal.title}". Make wrong options plausible (common misconceptions), not silly.
+      const prompt = `Generate exactly 5 multiple-choice questions testing real understanding of "${topic}" within "${state.goal.subject}", for a student at this level: ${state.goal.gradeLevel || 'not specified'}. Calibrate difficulty and vocabulary strictly to that level — do not make questions harder than appropriate for it. Make wrong options plausible (common misconceptions), not silly.
 Respond with ONLY a raw JSON array: [{"question": "...", "options": ["A","B","C","D"], "correctIndex": 0}]`;
       const questions = JSON.parse((await claudeCall(prompt, 900)).replace(/```json|```/g, '').trim());
       state.quizzes[topic] = { questions, lastResult: null };
@@ -742,8 +794,9 @@ Reply concisely and concretely, 2-5 sentences unless the concept needs more. Pla
     const subject = document.getElementById('vl-goal-subject').value.trim();
     const targetDate = document.getElementById('vl-goal-date').value;
     const topicsRaw = document.getElementById('vl-goal-topics').value.trim();
+    const gradeLevel = document.getElementById('vl-goal-grade').value;
     if (!title || !subject || !topicsRaw) { alert('Fill in the goal title, subject, and at least one topic.'); return; }
-    state.goal = { title, subject, targetDate: targetDate || 'no fixed date', topics: topicsRaw.split('\n').map(t => t.trim()).filter(Boolean) };
+    state.goal = { title, subject, targetDate: targetDate || 'no fixed date', topics: topicsRaw.split('\n').map(t => t.trim()).filter(Boolean), gradeLevel: gradeLevel || 'not specified' };
     state.view = 'dashboard'; await saveState(); await generateNextPlan();
   }
   async function resetAll() { if (!confirm('Reset all data and start over?')) return; state = defaultState(); await saveState(); render(); }
@@ -767,6 +820,14 @@ Reply concisely and concretely, 2-5 sentences unless the concept needs more. Pla
           <div class="vl-eyebrow">Set up your goal</div><h2>What are you studying for?</h2>
           <label for="vl-goal-title">Goal title</label><input id="vl-goal-title" placeholder="e.g. Physics mid-term" />
           <label for="vl-goal-subject">Subject</label><input id="vl-goal-subject" placeholder="e.g. Physics" />
+          <label for="vl-goal-grade">Grade / class level</label>
+          <select id="vl-goal-grade">
+            <option value="">Prefer not to say</option>
+            <option value="Middle school (grades 6-8)">Middle school (grades 6-8)</option>
+            <option value="Early high school (grades 9-10)">Early high school (grades 9-10)</option>
+            <option value="Late high school (grades 11-12)">Late high school (grades 11-12)</option>
+            <option value="College / University">College / University</option>
+          </select>
           <label for="vl-goal-date">Target date (optional)</label><input id="vl-goal-date" type="date" />
           <label for="vl-goal-topics">Topics — one per line</label>
           <textarea id="vl-goal-topics" placeholder="Motion&#10;Speed and Velocity&#10;Acceleration&#10;Equations of Motion"></textarea>
@@ -1053,7 +1114,35 @@ Reply concisely and concretely, 2-5 sentences unless the concept needs more. Pla
   }
 
   function renderFlashcardsTab() {
-    let html = `<div class="vl-card"><div class="vl-eyebrow">Generated by Vellum</div><h2>Flashcards by topic</h2>`;
+    let html = `<div class="vl-card">
+      <div class="vl-eyebrow">Take or upload a photo of your notes</div>
+      <h2>Flashcards from your notes</h2>
+      <div class="vl-note" style="margin-bottom:10px;">Vellum reads the whole photo and generates as many flashcards as your notes actually need — not a fixed number.</div>
+      <label for="vl-notes-title">Title (optional)</label>
+      <input id="vl-notes-title" placeholder="e.g. Chapter 4 notes" />
+      <label for="vl-notes-photo">Photo of your notes</label>
+      <input id="vl-notes-photo" type="file" accept="image/*" capture="environment" />
+      <div style="margin-top:10px;"><button class="vl-btn-primary" ${state.loadingNoteScan ? 'disabled' : ''} onclick="window.__vellumScanNotes()">${state.loadingNoteScan ? 'Reading your notes...' : 'Generate flashcards from photo'}</button></div>
+    </div>`;
+
+    if (state.noteSets.length > 0) {
+      html += `<div class="vl-card"><div class="vl-eyebrow">From your photos</div><h2>Your note sets</h2>`;
+      state.noteSets.forEach(set => {
+        html += `<div class="vl-topic-block">
+          <div class="vl-topic-header"><div class="vl-topic-name">${escapeHtml(set.title)}</div>
+            <button class="vl-btn-ghost vl-btn-small" onclick="window.__vellumDeleteNoteSet('${escapeJs(set.id)}')">Delete</button></div>
+          ${set.summary ? `<div class="vl-note" style="margin-bottom:10px;">${escapeHtml(set.summary)}</div>` : ''}
+          <div class="vl-flashcard-grid">${set.cards.map((c, i) => {
+            const key = 'noteset:' + set.id + '|' + i; const flipped = !!flippedCards[key];
+            return `<div class="vl-flashcard" onclick="window.__vellumNoteFlip('${escapeJs(set.id)}', ${i})"><div><div class="${flipped ? 'vl-flashcard-back' : 'vl-flashcard-front'}">${escapeHtml(flipped ? c.back : c.front)}</div><div class="vl-flashcard-hint">${flipped ? 'click to see question' : 'click to reveal answer'}</div></div></div>`;
+          }).join('')}</div>
+          <div class="vl-note" style="margin-top:8px;">${set.cards.length} card(s) generated from this photo</div>
+        </div>`;
+      });
+      html += `</div>`;
+    }
+
+    html += `<div class="vl-card"><div class="vl-eyebrow">Generated by Vellum</div><h2>Flashcards by topic</h2>`;
     state.goal.topics.forEach(topic => {
       const cards = state.flashcards[topic]; const isLoading = state.loadingFlashcards === topic;
       html += `<div class="vl-topic-block"><div class="vl-topic-header"><div class="vl-topic-name">${escapeHtml(topic)}</div>
@@ -1142,6 +1231,9 @@ Reply concisely and concretely, 2-5 sentences unless the concept needs more. Pla
   window.__vellumTab = switchTab;
   window.__vellumFlashcards = generateFlashcards;
   window.__vellumFlip = toggleFlip;
+  window.__vellumScanNotes = scanNotesPhoto;
+  window.__vellumNoteFlip = toggleNoteFlip;
+  window.__vellumDeleteNoteSet = deleteNoteSet;
   window.__vellumRoomPost = postRoomMessage;
   window.__vellumRoomRefresh = loadRoomMessages;
   window.__vellumChatSend = sendChatMessage;
