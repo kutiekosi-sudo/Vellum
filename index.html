@@ -1,9 +1,9 @@
-       <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Vellum — the study agent that remembers what you actually did</title>
+<title>Learnr — the study agent that remembers what you actually did</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Cormorant+Garamond:wght@500;600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
 
@@ -185,15 +185,53 @@
 </head>
 <body>
 <div id="vellum-root"></div>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+  import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+  import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyDAkK5jNX4ffRZlMlhpULsat2qdWgmIx84",
+    authDomain: "learnr-e939d.firebaseapp.com",
+    projectId: "learnr-e939d",
+    storageBucket: "learnr-e939d.firebasestorage.app",
+    messagingSenderId: "631447154027",
+    appId: "1:631447154027:web:39906f5cf3aa6bc0eb302e"
+  };
+
+  const firebaseApp = initializeApp(firebaseConfig);
+  const auth = getAuth(firebaseApp);
+  const db = getFirestore(firebaseApp);
+
+  // Expose a small, real auth interface for the classic script below (which isn't a module)
+  window.__learnrAuth = {
+    signIn: async () => {
+      const result = await signInWithPopup(auth, new GoogleAuthProvider());
+      return result.user;
+    },
+    signOut: () => signOut(auth),
+    getUserDoc: async (uid) => {
+      const snap = await getDoc(doc(db, "users", uid));
+      return snap.exists() ? snap.data() : null;
+    },
+    createUserDoc: async (uid, data) => {
+      await setDoc(doc(db, "users", uid), data);
+    },
+    onAuthChange: (callback) => onAuthStateChanged(auth, callback)
+  };
+  window.dispatchEvent(new Event('learnr-auth-ready'));
+</script>
 <script>
 
 (function() {
   const STORAGE_KEY = 'vellum-state-v5';
 
+  // Real identity now — no more random per-browser device IDs. This is the signed-in Firebase user's uid.
+  let currentUser = null;
+  let userRole = null;
   function getDeviceId() {
-    let id = localStorage.getItem('vellum-device-id');
-    if (!id) { id = 'dev-' + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('vellum-device-id', id); }
-    return id;
+    if (!currentUser) throw new Error('No authenticated user — cannot read/write personal data.');
+    return 'uid-' + currentUser.uid;
   }
   async function storageGet(key, shared) {
     const fullKey = shared ? key : (getDeviceId() + ':' + key);
@@ -220,7 +258,7 @@
       loading: false, loadingFlashcards: null, loadingChat: false, loadingRoom: false, loadingMap: false,
       loadingQuiz: null, loadingGrading: false, loadingTeachBack: null, loadingOptimizer: false,
       showCorrectionInput: false, activeTab: 'dashboard', selectedQuizTopic: null, selectedTBTopic: null,
-      minimumPlan: null, roomMessages: [], view: 'onboarding',
+      minimumPlan: null, roomMessages: [], view: 'login',
       noteSets: [], loadingNoteScan: false, personalNotes: {}, selectedNotesTopic: null,
       timerSecondsLeft: null, timerRunning: false, timerTotalSeconds: null
     };
@@ -479,7 +517,7 @@
     const retentionSummary = retentionSummaryText(state.currentDay);
     const depSummary = dependencySummaryText();
     const ghostSummary = ghostKnowledgeSummaryText();
-    const prompt = `You are Vellum, an adaptive study-planning agent. Generate ONE day's study session using the student's actual history, retention forecast, topic prerequisite structure, ghost knowledge signals, and pod signal.
+    const prompt = `You are Learnr, an adaptive study-planning agent. Generate ONE day's study session using the student's actual history, retention forecast, topic prerequisite structure, ghost knowledge signals, and pod signal.
 
 Student goal: "${goal.title}" (subject: ${goal.subject}), target date: ${goal.targetDate}. Student's grade/level: ${goal.gradeLevel || 'not specified'} — calibrate difficulty and language to this level.
 Topics to cover: ${goal.topics.join(', ')}.
@@ -533,7 +571,7 @@ Respond with ONLY a raw JSON object, no markdown fences:
     if (!today) return;
     state.loading = true; render();
     try {
-      const prompt = `You are Vellum. You gave the student this plan: topic "${today.topic}", ${today.plannedDuration} minutes, difficulty "${today.difficulty}". They pushed back: "${reason}". Revise it, staying within: ${state.goal.topics.join(', ')}.
+      const prompt = `You are Learnr. You gave the student this plan: topic "${today.topic}", ${today.plannedDuration} minutes, difficulty "${today.difficulty}". They pushed back: "${reason}". Revise it, staying within: ${state.goal.topics.join(', ')}.
 Respond with ONLY a raw JSON object: {"topic": "revised topic", "duration_min": number (10-45), "difficulty": "easy"|"medium"|"hard", "reasoning": "1-2 sentences acknowledging their pushback and explaining the change"}`;
       const result = JSON.parse((await claudeCall(prompt, 400)).replace(/```json|```/g, '').trim());
       today.topic = result.topic; today.plannedDuration = result.duration_min; today.difficulty = result.difficulty;
@@ -731,7 +769,7 @@ Evaluate it. Respond with ONLY a raw JSON object:
     try {
       const blocksText = blocks.map(b => `${b.minutes}min on ${b.topic} (retention ${b.retention === null ? 'untested' : b.retention + '%'}, ${b.dependents} topic(s) depend on it)`).join('; ');
       const prompt = `A student has ${minutes} minutes tonight. This allocation was computed by weighting retention risk and prerequisite importance: ${blocksText}
-Write one short paragraph (2-3 sentences) in Vellum's voice explaining why this allocation prioritizes what it does, referencing the actual numbers.`;
+Write one short paragraph (2-3 sentences) in Learnr's voice explaining why this allocation prioritizes what it does, referencing the actual numbers.`;
       const explanation = (await claudeCall(prompt, 300)).trim();
       state.minimumPlan = { minutes, blocks, explanation, day: state.currentDay };
     } catch (e) {
@@ -763,14 +801,14 @@ Write one short paragraph (2-3 sentences) in Vellum's voice explaining why this 
     await saveState(); render();
   }
 
-  // ---- Ask Vellum chat ----
+  // ---- Ask Learnr chat ----
   async function sendChatMessage() {
     const input = document.getElementById('vl-chat-input'); const msg = input.value.trim();
     if (!msg) return;
     state.chatHistory.push({ role: 'user', content: msg }); input.value = ''; state.loadingChat = true; render();
     try {
-      const recentHistory = state.chatHistory.slice(-8).map(m => `${m.role === 'user' ? 'Student' : 'Vellum'}: ${m.content}`).join('\n');
-      const prompt = `You are Vellum, a warm AI study tutor helping with: "${state.goal.title}" (subject: ${state.goal.subject}). Topics: ${state.goal.topics.join(', ')}.
+      const recentHistory = state.chatHistory.slice(-8).map(m => `${m.role === 'user' ? 'Student' : 'Learnr'}: ${m.content}`).join('\n');
+      const prompt = `You are Learnr, a warm AI study tutor helping with: "${state.goal.title}" (subject: ${state.goal.subject}). Topics: ${state.goal.topics.join(', ')}.
 Conversation so far:\n${recentHistory}
 Reply concisely and concretely, 2-5 sentences unless the concept needs more. Plain text only.`;
       state.chatHistory.push({ role: 'assistant', content: (await claudeCall(prompt, 500)).trim() });
@@ -810,12 +848,48 @@ Reply concisely and concretely, 2-5 sentences unless the concept needs more. Pla
   }
 
   // ---- Rendering ----
-  function render() { if (state.view === 'onboarding') renderOnboarding(); else renderDashboard(); }
+  function render() {
+    if (state.view === 'login') renderLogin();
+    else if (state.view === 'role-select') renderRoleSelect();
+    else if (state.view === 'onboarding') renderOnboarding();
+    else renderDashboard();
+  }
+
+  function renderLogin() {
+    root.innerHTML = `
+      <div class="vl-wrap" style="max-width:480px; padding-top:60px; text-align:center;">
+        <div class="vl-title" style="font-size:40px;">Learnr</div>
+        <div class="vl-tagline" style="margin-bottom:30px;">Learn. Practice. Improve.</div>
+        <div class="vl-card">
+          <p style="margin-bottom:18px;">Sign in with your Google account to get started.</p>
+          <button class="vl-btn-primary" onclick="window.__learnrSignIn()">Sign in with Google</button>
+        </div>
+      </div>`;
+  }
+
+  function renderRoleSelect() {
+    root.innerHTML = `
+      <div class="vl-wrap" style="max-width:520px; padding-top:60px; text-align:center;">
+        <div class="vl-title" style="font-size:32px;">Welcome${currentUser && currentUser.displayName ? ', ' + escapeHtml(currentUser.displayName.split(' ')[0]) : ''}</div>
+        <div class="vl-tagline" style="margin-bottom:30px;">How will you be using Learnr?</div>
+        <div style="display:flex; gap:16px; flex-wrap:wrap; justify-content:center;">
+          <div class="vl-card" style="flex:1; min-width:180px; cursor:pointer;" onclick="window.__learnrChooseRole('student')">
+            <h2>I'm a Student</h2>
+            <div class="vl-note">Join classes, study, take assessments, track your progress.</div>
+          </div>
+          <div class="vl-card" style="flex:1; min-width:180px; cursor:pointer;" onclick="window.__learnrChooseRole('teacher')">
+            <h2>I'm a Teacher</h2>
+            <div class="vl-note">Create classes, assign work, and see how your students are doing.</div>
+          </div>
+        </div>
+        <div class="vl-note" style="margin-top:16px;">This choice is permanent and can't be changed later — choose carefully.</div>
+      </div>`;
+  }
 
   function renderOnboarding() {
     root.innerHTML = `
       <div class="vl-wrap">
-        <div class="vl-header"><div><div class="vl-title">Vellum</div><div class="vl-tagline">the study agent that remembers what you actually did</div></div></div>
+        <div class="vl-header"><div><div class="vl-title">Learnr</div><div class="vl-tagline">the study agent that remembers what you actually did</div></div></div>
         <div class="vl-card">
           <div class="vl-eyebrow">Set up your goal</div><h2>What are you studying for?</h2>
           <label for="vl-goal-title">Goal title</label><input id="vl-goal-title" placeholder="e.g. Physics mid-term" />
@@ -840,13 +914,16 @@ Reply concisely and concretely, 2-5 sentences unless the concept needs more. Pla
     const tabs = [
       { id: 'dashboard', label: 'Dashboard' }, { id: 'plan', label: 'Today' }, { id: 'tests', label: 'Tests' },
       { id: 'teachback', label: 'Teach Back' }, { id: 'insights', label: 'Insights' }, { id: 'optimizer', label: 'Optimizer' },
-      { id: 'flashcards', label: 'Flashcards' }, { id: 'room', label: 'Study Room' }, { id: 'chat', label: 'Ask Vellum' }, { id: 'ledger', label: 'Pod & Ledger' }
+      { id: 'flashcards', label: 'Flashcards' }, { id: 'room', label: 'Study Room' }, { id: 'chat', label: 'Ask Learnr' }, { id: 'ledger', label: 'Pod & Ledger' }
     ];
     root.innerHTML = `
       <div class="vl-wrap">
         <div class="vl-header">
-          <div><div class="vl-title">Vellum</div><div class="vl-tagline">${escapeHtml(state.goal.title)} &middot; ${escapeHtml(state.goal.subject)}</div></div>
-          <div class="vl-day-badge">DAY ${state.currentDay}</div>
+          <div><div class="vl-title">Learnr</div><div class="vl-tagline">${escapeHtml(state.goal.title)} &middot; ${escapeHtml(state.goal.subject)}</div></div>
+          <div style="text-align:right;">
+            <div class="vl-day-badge">DAY ${state.currentDay}</div>
+            <div class="vl-note" style="margin-top:6px;">${currentUser ? escapeHtml(currentUser.displayName || currentUser.email || '') : ''} (${escapeHtml(userRole || '')}) &middot; <a href="#" onclick="window.__learnrSignOutClick(); return false;" style="color:var(--maroon);">Sign out</a></div>
+          </div>
         </div>
         <div class="vl-tabs">${tabs.map(t => `<button class="vl-tab ${state.activeTab === t.id ? 'active' : ''}" onclick="window.__vellumTab('${t.id}')">${t.label}</button>`).join('')}</div>
         <div id="vl-tab-content"></div>
@@ -1060,7 +1137,7 @@ Reply concisely and concretely, 2-5 sentences unless the concept needs more. Pla
     });
     html += `<div class="vl-note">Estimated from days since last review/quiz and how difficult it felt — a real decay model, not an AI guess.</div></div>`;
 
-    html += `<div class="vl-card"><div class="vl-eyebrow">Inferred by Vellum &middot; drives daily topic priority</div><h2>Topic dependency map</h2>`;
+    html += `<div class="vl-card"><div class="vl-eyebrow">Inferred by Learnr &middot; drives daily topic priority</div><h2>Topic dependency map</h2>`;
     if (!state.dependencyMap) {
       html += `<button class="vl-btn-primary vl-btn-small" ${state.loadingMap ? 'disabled' : ''} onclick="window.__vellumBuildMap()">${state.loadingMap ? 'Mapping...' : 'Build dependency map'}</button>`;
     } else {
@@ -1117,7 +1194,7 @@ Reply concisely and concretely, 2-5 sentences unless the concept needs more. Pla
     let html = `<div class="vl-card">
       <div class="vl-eyebrow">Take or upload a photo of your notes</div>
       <h2>Flashcards from your notes</h2>
-      <div class="vl-note" style="margin-bottom:10px;">Vellum reads the whole photo and generates as many flashcards as your notes actually need — not a fixed number.</div>
+      <div class="vl-note" style="margin-bottom:10px;">Learnr reads the whole photo and generates as many flashcards as your notes actually need — not a fixed number.</div>
       <label for="vl-notes-title">Title (optional)</label>
       <input id="vl-notes-title" placeholder="e.g. Chapter 4 notes" />
       <label for="vl-notes-photo">Photo of your notes</label>
@@ -1142,7 +1219,7 @@ Reply concisely and concretely, 2-5 sentences unless the concept needs more. Pla
       html += `</div>`;
     }
 
-    html += `<div class="vl-card"><div class="vl-eyebrow">Generated by Vellum</div><h2>Flashcards by topic</h2>`;
+    html += `<div class="vl-card"><div class="vl-eyebrow">Generated by Learnr</div><h2>Flashcards by topic</h2>`;
     state.goal.topics.forEach(topic => {
       const cards = state.flashcards[topic]; const isLoading = state.loadingFlashcards === topic;
       html += `<div class="vl-topic-block"><div class="vl-topic-header"><div class="vl-topic-name">${escapeHtml(topic)}</div>
@@ -1160,7 +1237,7 @@ Reply concisely and concretely, 2-5 sentences unless the concept needs more. Pla
     let html = '';
     if (alert) html += `<div class="vl-alert-banner"><div class="vl-alert-icon">\u26a0\ufe0f</div><div class="vl-alert-text"><span class="vl-alert-label">Class concept alert</span><strong>${escapeHtml(alert.topic)}</strong> is currently a shared struggle in your pod — a good candidate for a group session.</div></div>`;
     html += `<div class="vl-card"><div class="vl-eyebrow">Shared with anyone in this goal's room</div><h2>Study Room</h2>
-      <div class="vl-note" style="margin-bottom:14px;">Notes here are visible to anyone who opens Vellum under the goal name "${escapeHtml(state.goal.title)}" — a real shared space, not private.</div>
+      <div class="vl-note" style="margin-bottom:14px;">Notes here are visible to anyone who opens Learnr under the goal name "${escapeHtml(state.goal.title)}" — a real shared space, not private.</div>
       <label for="vl-room-name">Your name</label><input id="vl-room-name" placeholder="e.g. ${state.displayName ? escapeHtml(state.displayName) : 'Your name'}" value="${escapeHtml(state.displayName)}" />
       <label for="vl-room-text">Share a note or question</label><textarea id="vl-room-text" placeholder="e.g. Anyone have a good way to remember this?"></textarea>
       <div style="margin-top:10px;"><button class="vl-btn-primary" onclick="window.__vellumRoomPost()">Post to room</button></div></div>
@@ -1173,10 +1250,10 @@ Reply concisely and concretely, 2-5 sentences unless the concept needs more. Pla
   }
 
   function renderChatTab() {
-    let html = `<div class="vl-card"><div class="vl-eyebrow">Grounded in your goal &amp; topics</div><h2>Ask Vellum</h2><div class="vl-chat-log" id="vl-chat-log">`;
+    let html = `<div class="vl-card"><div class="vl-eyebrow">Grounded in your goal &amp; topics</div><h2>Ask Learnr</h2><div class="vl-chat-log" id="vl-chat-log">`;
     if (state.chatHistory.length === 0) html += `<div class="vl-empty">Ask about a topic, or ask for study tips.</div>`;
-    else html += state.chatHistory.map(m => `<div class="vl-chat-msg"><div class="vl-chat-role ${m.role}">${m.role === 'user' ? 'You' : 'Vellum'}</div><div class="vl-chat-bubble">${escapeHtml(m.content)}</div></div>`).join('');
-    if (state.loadingChat) html += `<div class="vl-loading">Vellum is thinking...</div>`;
+    else html += state.chatHistory.map(m => `<div class="vl-chat-msg"><div class="vl-chat-role ${m.role}">${m.role === 'user' ? 'You' : 'Learnr'}</div><div class="vl-chat-bubble">${escapeHtml(m.content)}</div></div>`).join('');
+    if (state.loadingChat) html += `<div class="vl-loading">Learnr is thinking...</div>`;
     html += `</div><div class="vl-chat-input-row"><input id="vl-chat-input" placeholder="e.g. Can you explain this simply?" onkeydown="if(event.key==='Enter'){window.__vellumChatSend();}" /><button class="vl-btn-primary" ${state.loadingChat ? 'disabled' : ''} onclick="window.__vellumChatSend()">Send</button></div></div>`;
     return html;
   }
@@ -1250,7 +1327,57 @@ Reply concisely and concretely, 2-5 sentences unless the concept needs more. Pla
   window.__vellumWhatIf = (kind) => { const projected = whatIfScenario(kind); renderWhatIfInline(kind, projected); };
   window.__vellumJumpAction = jumpToAction;
 
-  loadState();
+  // ---- Real auth-driven startup ----
+  async function doSignIn() {
+    try { await window.__learnrAuth.signIn(); }
+    catch (e) { console.error(e); alert('Sign-in failed: ' + (e.message || 'unknown error')); }
+  }
+  async function doSignOut() {
+    try { await window.__learnrAuth.signOut(); }
+    catch (e) { console.error(e); alert('Sign-out failed: ' + (e.message || 'unknown error')); }
+  }
+  async function chooseRole(role) {
+    if (!currentUser) return;
+    try {
+      await window.__learnrAuth.createUserDoc(currentUser.uid, {
+        role, displayName: currentUser.displayName || '', email: currentUser.email || '',
+        createdAt: new Date().toISOString()
+      });
+      userRole = role;
+      await loadState();
+    } catch (e) { console.error(e); alert('Could not save your role: ' + (e.message || 'unknown error')); }
+  }
+
+  window.__learnrSignIn = doSignIn;
+  window.__learnrSignOutClick = doSignOut;
+  window.__learnrChooseRole = chooseRole;
+
+  function startAuthListener() {
+    window.__learnrAuth.onAuthChange(async (user) => {
+      if (!user) {
+        currentUser = null; userRole = null;
+        state = defaultState(); state.view = 'login'; render();
+        return;
+      }
+      currentUser = user;
+      try {
+        const userDoc = await window.__learnrAuth.getUserDoc(user.uid);
+        if (!userDoc || !userDoc.role) {
+          state = defaultState(); state.view = 'role-select'; render();
+        } else {
+          userRole = userDoc.role;
+          await loadState();
+        }
+      } catch (e) {
+        console.error(e);
+        state = defaultState(); state.view = 'login'; render();
+        alert('Could not load your account: ' + (e.message || 'unknown error'));
+      }
+    });
+  }
+
+  if (window.__learnrAuth) startAuthListener();
+  else window.addEventListener('learnr-auth-ready', startAuthListener, { once: true });
 })();
 </script>
 </body>
