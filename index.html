@@ -216,7 +216,7 @@
 
   const firebaseApp = initializeApp(firebaseConfig);
   const auth = getAuth(firebaseApp);
-  const db = initializeFirestore(firebaseApp, { experimentalForceLongPolling: true });
+    const db = initializeFirestore(firebaseApp, { experimentalForceLongPolling: true }, 'default');
 
   // Expose a small, real auth interface for the classic script below (which isn't a module)
   window.__learnrAuth = {
