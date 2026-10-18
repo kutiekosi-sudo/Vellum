@@ -344,3 +344,15 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 15px; }
 }
 
 @media print { .tabbar, .sidebar, .topbar, .btn { display: none !important; } .page { padding: 0; } }
+
+/* ---- sign-in and role screens ---- */
+.auth { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 24px 16px calc(24px + var(--safe-b)); }
+.auth-art { width: min(220px, 52vw); animation: rise .5s ease both; }
+.auth-art svg { width: 100%; height: auto; display: block; }
+.auth-card { width: 100%; max-width: 440px; }
+.auth-card > .wordmark { font-size: 64px; text-align: center; }
+.auth-card > .tagline { text-align: center; color: var(--muted); margin-top: -6px; }
+.role-opt { display: flex; align-items: center; gap: 14px; text-align: left; width: 100%; padding: 14px 16px; background: var(--surface); border: 1.5px solid var(--line-2); border-radius: 16px; cursor: pointer; font: inherit; color: inherit; min-height: 64px; }
+.role-opt:hover { background: var(--surface-2); }
+.role-opt[aria-checked="true"] { border-color: var(--brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent); }
+.role-ic { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; background: color-mix(in srgb, var(--brand) 12%, #fff); color: var(--brand); flex: none; }
