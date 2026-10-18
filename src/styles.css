@@ -356,3 +356,12 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 15px; }
 .role-opt:hover { background: var(--surface-2); }
 .role-opt[aria-checked="true"] { border-color: var(--brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent); }
 .role-ic { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; background: color-mix(in srgb, var(--brand) 12%, #fff); color: var(--brand); flex: none; }
+
+/* ---- shell additions ---- */
+.app-main { min-width: 0; }
+.skip { position: absolute; left: -999px; top: 8px; z-index: 100; background: var(--ink); color: #fff; padding: 10px 16px; border-radius: 10px; }
+.skip:focus { left: 8px; }
+main.page:focus { outline: none; }
+.nav-bell { position: relative; }
+.dot-count { position: absolute; top: 4px; right: 2px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--bad, #B3402F); color: #fff; font-size: 11px; font-weight: 700; display: grid; place-items: center; }
+@media (min-width: 900px) { .topbar-me { display: none; } }
