@@ -1,0 +1,222 @@
+rules_version = '2';
+
+// Learnr security rules.
+// Publish these in: Firebase console -> Firestore Database -> database "default" -> Rules -> Publish.
+//
+// Data model (all paths are inside the "default" database):
+//   users/{uid}                              profile + permanent role ('student' | 'teacher')
+//   users/{uid}/memberships/{classId}        classes a student has joined (private to the student)
+//   users/{uid}/studySessions|goals|...      private study data (private to the owner)
+//   users/{uid}/notifications/{id}           notifications (owner reads; people in the same class may create)
+//   classes/{classId}                        a classroom (owned by one teacher)
+//   classCodes/{CODE}                        join code -> class (get only, never listable)
+//   classes/{classId}/members/{uid}          class roster (teacher-readable; each student reads only their own)
+//   classes/{classId}/announcements|assignments|resources|cbts/...
+//   classes/{classId}/assignments/{a}/submissions/{uid}
+//   classes/{classId}/cbts/{id}/theory/{sid} revision material for a CBT
+//   pods/{podId}, podCodes/{CODE}            Study Pod
+//   schools/{schoolId}                       reserved for future school-level administration
+//
+// CBT questions, answer keys and attempts are NOT stored here. They live behind the
+// authenticated /.netlify/functions/cbt endpoint so students never receive answer keys.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- helpers ----------
+    function signedIn() { return request.auth != null; }
+    function me() { return request.auth.uid; }
+
+    function userDoc(u) { return get(/databases/$(database)/documents/users/$(u)); }
+    function isTeacherUser() { return signedIn() && userDoc(me()).data.role == 'teacher'; }
+    function isStudentUser() { return signedIn() && userDoc(me()).data.role == 'student'; }
+
+    function classPath(c) { return /databases/$(database)/documents/classes/$(c); }
+    function memberPath(c, u) { return /databases/$(database)/documents/classes/$(c)/members/$(u); }
+    function isClassTeacher(c) { return signedIn() && get(classPath(c)).data.teacherId == me(); }
+    function isActiveMember(c) {
+      return signedIn() && exists(memberPath(c, me())) && get(memberPath(c, me())).data.status == 'active';
+    }
+    function inClass(c) { return isClassTeacher(c) || isActiveMember(c); }
+
+    function codePath(code) { return /databases/$(database)/documents/classCodes/$(code); }
+    function validClassCode(code, c) {
+      return code is string
+        && exists(codePath(code))
+        && get(codePath(code)).data.classId == c
+        && get(codePath(code)).data.active == true
+        && (get(codePath(code)).data.get('expiresAt', null) == null
+            || request.time.toMillis() < get(codePath(code)).data.expiresAt);
+    }
+
+    function podPath(p) { return /databases/$(database)/documents/pods/$(p); }
+    function podMemberPath(p, u) { return /databases/$(database)/documents/pods/$(p)/members/$(u); }
+    function isPodOwner(p) { return signedIn() && get(podPath(p)).data.ownerUid == me(); }
+    function isPodMember(p) { return signedIn() && exists(podMemberPath(p, me())); }
+    function validPodCode(code, p) {
+      return code is string
+        && exists(/databases/$(database)/documents/podCodes/$(code))
+        && get(/databases/$(database)/documents/podCodes/$(code)).data.podId == p
+        && get(/databases/$(database)/documents/podCodes/$(code)).data.active == true;
+    }
+
+    // ---------- users ----------
+    match /users/{u} {
+      allow read: if signedIn() && me() == u;
+      allow create: if signedIn() && me() == u
+        && request.resource.data.role in ['student', 'teacher']
+        && request.resource.data.keys().hasOnly(['role', 'displayName', 'email', 'photoURL', 'createdAt', 'schoolId', 'settings', 'lastSeen']);
+      // The role can never change after the account is created.
+      allow update: if signedIn() && me() == u
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.keys().hasOnly(['role', 'displayName', 'email', 'photoURL', 'createdAt', 'schoolId', 'settings', 'lastSeen']);
+      allow delete: if false;
+
+      // Private per-user collections.
+      match /{coll}/{docId} {
+        allow read, write: if signedIn() && me() == u
+          && coll in ['memberships', 'studySessions', 'goals', 'flashcards', 'practice', 'aiChats', 'podMemberships'];
+      }
+
+      match /notifications/{n} {
+        allow read, update, delete: if signedIn() && me() == u;
+        allow create: if signedIn() && (
+          me() == u
+          || (
+            request.resource.data.fromUid == me()
+            && request.resource.data.classId is string
+            && (
+              // teacher -> a member of their class
+              (isClassTeacher(request.resource.data.classId) && exists(memberPath(request.resource.data.classId, u)))
+              // student -> the teacher of a class they belong to
+              || (get(classPath(request.resource.data.classId)).data.teacherId == u
+                  && isActiveMember(request.resource.data.classId))
+            )
+          )
+        );
+      }
+    }
+
+    // ---------- classes ----------
+    match /classes/{c} {
+      allow read: if signedIn() && (resource.data.teacherId == me() || isActiveMember(c));
+      allow create: if isTeacherUser() && request.resource.data.teacherId == me();
+      allow update: if signedIn() && resource.data.teacherId == me()
+        && request.resource.data.teacherId == resource.data.teacherId;
+      allow delete: if false; // classes are archived (archived: true), never deleted
+
+      match /members/{m} {
+        allow get: if signedIn() && (m == me() || isClassTeacher(c));
+        allow list: if isClassTeacher(c);
+        // A student joins with a valid, active class code.
+        allow create: if signedIn() && m == me() && isStudentUser()
+          && request.resource.data.uid == me()
+          && validClassCode(request.resource.data.code, c)
+          && request.resource.data.status == (get(classPath(c)).data.get('joinMode', 'open') == 'approval' ? 'pending' : 'active');
+        // The teacher approves/blocks; a student may only refresh their own display info and activity summary.
+        allow update: if isClassTeacher(c)
+          || (signedIn() && m == me()
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'photoURL', 'activity']));
+        allow delete: if isClassTeacher(c) || (signedIn() && m == me());
+      }
+
+      match /announcements/{a} {
+        allow read: if inClass(c);
+        allow write: if isClassTeacher(c);
+      }
+
+      match /resources/{r} {
+        allow read: if isClassTeacher(c) || (isActiveMember(c) && resource.data.published == true);
+        allow write: if isClassTeacher(c);
+      }
+
+      match /assignments/{a} {
+        allow read: if isClassTeacher(c) || (isActiveMember(c) && resource.data.published == true);
+        allow write: if isClassTeacher(c);
+
+        match /submissions/{s} {
+          allow read: if isClassTeacher(c) || (isActiveMember(c) && s == me());
+
+          // First submission. submittedAt must be the server time. Whether it was late is worked out from
+          // submittedAt and the due date when it is displayed, so a wrong phone clock can't change it.
+          allow create: if isActiveMember(c) && s == me()
+            && request.resource.data.uid == me()
+            && request.resource.data.submittedAt == request.time
+            && get(/databases/$(database)/documents/classes/$(c)/assignments/$(a)).data.published == true
+            && !('grade' in request.resource.data)
+            && !('feedback' in request.resource.data);
+
+          allow update:
+            // teacher: grading, feedback, returning work, viewed marker
+            if (isClassTeacher(c)
+                && request.resource.data.diff(resource.data).affectedKeys()
+                     .hasOnly(['grade', 'feedback', 'gradedAt', 'gradedBy', 'status', 'rubricScores', 'viewedAt']))
+            // student: resubmit only when allowed (or when the teacher returned it), never touching grading fields
+            || (isActiveMember(c) && s == me()
+                && (get(/databases/$(database)/documents/classes/$(c)/assignments/$(a)).data.get('allowResubmit', false) == true
+                    || resource.data.get('status', '') == 'returned')
+                && request.resource.data.diff(resource.data).affectedKeys()
+                     .hasOnly(['text', 'links', 'files', 'submittedAt', 'attempt', 'status'])
+                && request.resource.data.submittedAt == request.time);
+          allow delete: if false;
+        }
+      }
+
+      match /cbts/{t} {
+        allow read: if isClassTeacher(c) || (isActiveMember(c) && resource.data.published == true);
+        allow write: if isClassTeacher(c);
+
+        match /theory/{s} {
+          allow read: if isClassTeacher(c) || (isActiveMember(c) && resource.data.published == true);
+          allow write: if isClassTeacher(c);
+        }
+      }
+    }
+
+    // ---------- class codes ----------
+    match /classCodes/{code} {
+      // Anyone signed in can look up ONE code they typed in; the list of codes is never readable.
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if isTeacherUser() && request.resource.data.teacherId == me()
+        && get(classPath(request.resource.data.classId)).data.teacherId == me();
+      allow update: if signedIn() && resource.data.teacherId == me()
+        && request.resource.data.teacherId == resource.data.teacherId
+        && request.resource.data.classId == resource.data.classId;
+      allow delete: if false;
+    }
+
+    // ---------- study pods ----------
+    match /podCodes/{code} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn() && request.resource.data.ownerUid == me();
+      allow update: if signedIn() && resource.data.ownerUid == me()
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.podId == resource.data.podId;
+      allow delete: if false;
+    }
+
+    match /pods/{p} {
+      allow read: if signedIn() && (resource.data.ownerUid == me() || isPodMember(p));
+      allow create: if signedIn() && request.resource.data.ownerUid == me();
+      allow update: if signedIn() && resource.data.ownerUid == me()
+        && request.resource.data.ownerUid == resource.data.ownerUid;
+      allow delete: if signedIn() && resource.data.ownerUid == me();
+
+      match /members/{m} {
+        allow read: if isPodMember(p) || isPodOwner(p);
+        allow create: if signedIn() && m == me()
+          && (isPodOwner(p) || validPodCode(request.resource.data.code, p));
+        allow update: if signedIn() && m == me();
+        allow delete: if signedIn() && (m == me() || isPodOwner(p));
+      }
+    }
+
+    // ---------- schools (future) ----------
+    match /schools/{s} {
+      allow read: if signedIn() && userDoc(me()).data.get('schoolId', null) == s;
+      allow write: if false; // managed from the Firebase console until school admin tools exist
+    }
+  }
+}

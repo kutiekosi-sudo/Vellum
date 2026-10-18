@@ -1,8 +1,19 @@
 {
-  "name": "vellum",
-  "version": "1.0.0",
-  "description": "Vellum — the study agent that remembers what you actually did",
+  "name": "learnr",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Learnr: learn, practice, improve. Classrooms, CBTs, study tracking and AI coaching for teachers and students.",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "build:test": "node build.mjs --test"
+  },
   "dependencies": {
-    "@netlify/blobs": "^7.0.0"
+    "@netlify/blobs": "^8.1.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
   }
 }
