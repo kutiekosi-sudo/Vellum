@@ -24,7 +24,7 @@ function ClassCard({ c, children, to }) {
 // ---------------- teacher ----------------
 function CreateClass({ onClose }) {
   const { user, profile, fail, toast } = useApp();
-  const [f, setF] = useState({ name: '', subject: '', section: '', description: '', color: randomClassColor(), joinMode: 'open' });
+  const [f, setF] = useState({ name: '', subject: '', section: '', level: '', description: '', color: randomClassColor(), joinMode: 'open' });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
@@ -47,6 +47,7 @@ function CreateClass({ onClose }) {
           <TextField label="Subject" value={f.subject} onChange={set('subject')} placeholder="Chemistry" maxLength={60} autoComplete="off" />
           <TextField label="Section (optional)" value={f.section} onChange={set('section')} placeholder="Period 3" maxLength={40} autoComplete="off" />
         </div>
+        <TextField label="Class level" value={f.level} onChange={set('level')} placeholder="e.g. SS2, JSS1, Year 10" maxLength={40} hint="The AI uses this to pitch questions and explanations at the right difficulty." autoComplete="off" />
         <TextArea label="Description (optional)" rows={2} value={f.description} onChange={set('description')} maxLength={300} />
         <SelectField label="How students join" value={f.joinMode} onChange={set('joinMode')} hint="With approval, students wait until you let them in.">
           <option value="open">Anyone with the code joins straight away</option>

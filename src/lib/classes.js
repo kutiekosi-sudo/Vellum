@@ -4,7 +4,7 @@ import { db } from '../backend/index.js';
 import { makeClassCode, normalizeCode } from './util.js';
 import { AppError } from './errors.js';
 
-export async function createClass(user, profile, { name, subject, section, description, color, joinMode }) {
+export async function createClass(user, profile, { name, subject, section, level, description, color, joinMode }) {
   const id = db.newId();
   let code = '';
   for (let i = 0; i < 6; i++) {
@@ -14,7 +14,7 @@ export async function createClass(user, profile, { name, subject, section, descr
   if (!code) throw new AppError('We could not make a free class code. Please try again.', 'code_taken');
   const teacherName = profile.displayName || user.displayName || 'Teacher';
   const cls = {
-    teacherId: user.uid, teacherName, name: name.trim(), subject: (subject || '').trim(), section: (section || '').trim(),
+    teacherId: user.uid, teacherName, name: name.trim(), subject: (subject || '').trim(), section: (section || '').trim(), level: (level || '').trim(),
     description: (description || '').trim(), color, joinMode: joinMode || 'open', code, archived: false, createdAt: Date.now(),
   };
   await db.set('classes/' + id, cls);

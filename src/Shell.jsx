@@ -21,7 +21,7 @@ const TEACHER_NAV = [
   { to: '/profile', label: 'Profile', icon: 'user' },
 ];
 
-const isActive = (item, path) => (item.to === '/' ? path === '/' : path === item.to || path.startsWith(item.to + '/'));
+const isActive = (item, path) => (item.to === '/' ? path === '/' : path === item.to || path.startsWith(item.to + '/') || (item.to === '/classes' && path.startsWith('/class/')));
 
 export default function Shell() {
   const { role, user, profile, online, signOut } = useApp();

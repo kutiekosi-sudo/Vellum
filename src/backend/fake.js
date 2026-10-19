@@ -86,6 +86,16 @@ function checkWrite(op, path, data, existing) {
   const keys = (d) => Object.keys(d || {});
   const changed = (a, b) => keys({ ...a, ...b }).filter((k) => JSON.stringify((a || {})[k]) !== JSON.stringify((b || {})[k]));
   if (s[0] === 'users') {
+    // Mirrors the rules: you may create a notification for someone else only from your own class context
+    // (teacher -> member of their class, student -> teacher of a class they are active in).
+    if (s[1] !== U() && s[2] === 'notifications' && s.length === 4 && op === 'create') {
+      const cid = data && data.classId;
+      const klass = typeof cid === 'string' ? cls(cid) : null;
+      const okT = klass && isTeacherOf(cid) && mem.has(`classes/${cid}/members/${s[1]}`);
+      const okS = klass && klass.teacherId === s[1] && isActive(cid);
+      if (data && data.fromUid === U() && (okT || okS)) return;
+      throw denied();
+    }
     if (s[1] !== U()) throw denied();
     if (s.length === 2) {
       const allowed = ['role', 'displayName', 'email', 'photoURL', 'createdAt', 'schoolId', 'settings', 'lastSeen'];

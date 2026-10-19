@@ -370,3 +370,15 @@ main.page:focus { outline: none; }
 .class-card-bar { position: absolute; left: 0; right: 0; top: 0; height: 6px; background: var(--accent); }
 .class-card { padding-top: 22px; position: relative; overflow: hidden; }
 .class-card.static:hover { transform: none; box-shadow: var(--shadow); }
+
+/* ---- class work ---- */
+.attachment { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 12px; border: 1px solid var(--line-2); border-radius: 12px; background: var(--surface); font-size: 14px; font-weight: 600; max-width: 100%; }
+.attachment svg { width: 18px; height: 18px; color: var(--accent-deep, var(--brand)); flex: none; }
+.attachment a { color: var(--ink); text-decoration: none; }
+.linklike { background: none; border: 0; padding: 0; font: inherit; font-weight: 600; color: var(--ink); text-align: left; cursor: pointer; text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 3px; min-height: 32px; }
+.item-row { display: flex; align-items: center; gap: 12px; padding: 14px 16px; text-decoration: none; color: inherit; }
+.item-row .ic { width: 40px; height: 40px; border-radius: 12px; background: var(--accent-soft); color: var(--accent-deep, var(--brand)); display: grid; place-items: center; flex: none; }
+a.item-row:hover { background: var(--surface-2); }
+.list-card { padding: 0; overflow: hidden; }
+.list-card > * + * { border-top: 1px solid var(--line); }
+.linklike:focus-visible, .item-row:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent, var(--brand)) 45%, transparent); outline-offset: -3px; }
