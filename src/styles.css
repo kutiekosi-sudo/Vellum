@@ -365,3 +365,8 @@ main.page:focus { outline: none; }
 .nav-bell { position: relative; }
 .dot-count { position: absolute; top: 4px; right: 2px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--bad, #B3402F); color: #fff; font-size: 11px; font-weight: 700; display: grid; place-items: center; }
 @media (min-width: 900px) { .topbar-me { display: none; } }
+
+/* ---- class cards ---- */
+.class-card-bar { position: absolute; left: 0; right: 0; top: 0; height: 6px; background: var(--accent); }
+.class-card { padding-top: 22px; position: relative; overflow: hidden; }
+.class-card.static:hover { transform: none; box-shadow: var(--shadow); }

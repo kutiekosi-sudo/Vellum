@@ -3,6 +3,8 @@
 import { Empty } from './ui/kit.jsx';
 import { PageHead } from './ui/kit.jsx';
 import Profile from './pages/Profile.jsx';
+import Classes from './pages/Classes.jsx';
+import ClassPage from './pages/ClassPage.jsx';
 
 function Soon({ title, art = 'desk' }) {
   return (
@@ -21,7 +23,7 @@ const SHARED = {
 };
 const STUDENT = {
   '/': { title: 'Home', Page: soon('Home', 'desk') },
-  '/classes': { title: 'Classes', Page: soon('Classes', 'classroom') },
+  '/classes': { title: 'Classes', Page: Classes },
   '/study': { title: 'Study', Page: soon('Study', 'focus') },
   '/coach': { title: 'Coach', Page: soon('Coach', 'coach') },
   '/pod': { title: 'Study Pod', Page: soon('Study Pod', 'pod') },
@@ -29,13 +31,14 @@ const STUDENT = {
 };
 const TEACHER = {
   '/': { title: 'Home', Page: soon('Home', 'classroom') },
-  '/classes': { title: 'Classes', Page: soon('Classes', 'classroom') },
+  '/classes': { title: 'Classes', Page: Classes },
   '/coach': { title: 'Coach', Page: soon('Coach', 'coach') },
   ...SHARED,
 };
 
 export function routeFor(role, route) {
   const table = role === 'teacher' ? TEACHER : STUDENT;
+  if (route.parts[0] === 'class' && route.parts[1]) return { title: 'Class', Page: ClassPage, props: { route } };
   const hit = table[route.path];
   return hit ? { ...hit, props: { route } } : { title: 'Not found', Page: null };
 }
