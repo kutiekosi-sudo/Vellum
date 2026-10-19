@@ -15,7 +15,7 @@ const n = (v, lo, hi, d) => Math.min(hi, Math.max(lo, Number(v) || d));
 
 const STUDENT_RULES = `You are Learnr's study coach, talking to a secondary-school student.
 - Help them learn. Do not simply hand over finished homework: explain the idea, give a worked example on a similar problem, then guide them through their own problem with hints and questions.
-- Be warm, encouraging and concrete. Keep answers short unless they ask for depth. Use plain language suited to their level.
+- Tone: friendly yet formal. Be polite, respectful and encouraging, in clear standard English. No slang, no emojis, no baby-talk. Be concrete. Keep answers short unless they ask for depth, and use plain language suited to their level.
 - If they seem stuck or stressed, suggest a small next step (a 10-minute task, a break).
 - Never diagnose medical or psychological conditions. Never shame them about their results.
 - If you are not sure about a fact, say so.`;
@@ -24,7 +24,16 @@ const TEACHER_RULES = `You are Learnr's teaching coach, helping a school teacher
 - Give practical, classroom-ready help: different explanations, real-life examples, analogies, simple demonstrations with everyday materials, activities, discussion questions, revision exercises and practice questions.
 - Match the age/level they mention. Use examples that work in under-resourced classrooms where possible (household items, food, farming, football, markets).
 - The teacher is responsible for teaching decisions. Offer options and trade-offs, and flag common misconceptions.
-- Keep language neutral and respectful about students. Never label students (lazy, slow) and never diagnose them.`;
+- Keep language neutral and respectful about students. Never label students (lazy, slow) and never diagnose them.
+- Tone: friendly yet formal. Be polite, professional and collegial, in clear standard English. No slang and no emojis.
+- When asked to help the teacher improve, give honest, specific, constructive feedback on lesson plans, questions, pacing, explanations and assessment: say what works, what to change, and exactly how. Support the teacher; do not flatter.`;
+
+const DIFFICULTY = {
+  easy: 'Difficulty: easy. Mostly recall of key facts and definitions.',
+  mixed: 'Difficulty: balanced. Roughly a third easy, a third moderate, a third challenging.',
+  hard: 'Difficulty: hard. Mostly application and multi-step reasoning, with plausible distractors.',
+  exam: 'Difficulty: match a typical end-of-term exam for this level, with plausible distractors.',
+};
 
 const JSON_ONLY = 'Respond with ONLY the raw JSON requested. No markdown fences, no commentary.';
 
@@ -114,7 +123,9 @@ const MODES = {
     teacherOnly: true, maxTokens: 4000,
     build: (p) => {
       const kind = s(p.kind, 40);
-      const ctx = `Class: ${s(p.className, 120) || 'n/a'}. Subject: ${s(p.subject, 80) || 'n/a'}. Level: ${s(p.level, 80) || 'n/a'}.\nTopic / request: ${s(p.topic, 600)}\nExtra notes: ${s(p.notes, 2500)}`;
+      const concepts = Array.isArray(p.concepts) ? p.concepts.slice(0, 8).map((c) => s(c, 120)).filter(Boolean) : [];
+      const fromNotes = kind === 'cbt_questions' || kind === 'revision_questions';
+      const ctx = `Class: ${s(p.className, 120) || 'n/a'}. Subject: ${s(p.subject, 80) || 'n/a'}. Level: ${s(p.level, 80) || 'n/a'}.\nTopic / request: ${s(p.topic, 600)}${concepts.length ? `\nConcepts: ${concepts.map((c, i) => `${i + 1}. ${c}`).join('; ')}` : ''}\nExtra notes: ${s(p.notes, fromNotes ? 12000 : 2500)}`;
       const asks = {
         announcement: 'Draft a short, friendly announcement to students. Plain text, ready to edit.',
         assignment_ideas: 'Suggest 4 assignment ideas with clear instructions, expected output and a simple marking idea for each.',
@@ -123,6 +134,7 @@ const MODES = {
         intervention: 'Suggest practical, respectful ways to support students who may benefit from additional academic support, based on the data given. Do not diagnose anyone.',
         differentiated: 'Create differentiated practice at three levels (support, core, stretch) for the topic, with 3 tasks each.',
         misconceptions: 'List the most common student misconceptions for the topic, why they happen, and a quick way to address each in class.',
+        explain_many: 'The teacher listed SEVERAL concepts (below). For EACH concept, in order, give: a plain one-sentence explanation; a real-life example or instance from students\' everyday world; an analogy students can relate to; and one common misconception with a quick fix. Then add a short section showing how the concepts connect to one another. Use a clear heading per concept.',
         explain: 'Give three different ways to explain this to students: a plain explanation, a real-life example, and an analogy. Add a simple demonstration and 3 discussion questions.',
         theory_notes: 'Write clear revision notes for students on this topic: key concepts, definitions, formulas (if any), one worked example, and 3 quick self-check questions. Use short paragraphs and plain text.',
       };
@@ -130,7 +142,7 @@ const MODES = {
         return {
           system: `${TEACHER_RULES}\n${JSON_ONLY}`,
           contents: [{ role: 'user', parts: [{ text:
-            `${ctx}\n\nWrite ${n(p.count, 3, 20, 8)} multiple-choice ${kind === 'revision_questions' ? 'revision' : 'assessment'} questions. 4 options each, exactly one correct, a clear explanation, a short topic name, and "skill" as "recall" or "application". Mix both skills.\nReturn: ${QUESTION_SHAPE}` }] }],
+            `${ctx}\n\nWrite ${n(p.count, 3, 20, 8)} multiple-choice ${kind === 'revision_questions' ? 'revision' : 'assessment'} questions. 4 options each, exactly one correct, a clear explanation, a short topic name, and "skill" as "recall" or "application". Mix both skills.\n${DIFFICULTY[s(p.difficulty, 20)] || DIFFICULTY.mixed}\nPitch every question for students at this class level: ${s(p.level, 80) || 'secondary school'}.${p.notes ? '\nBase the questions ONLY on the notes provided; do not test anything the notes do not cover.' : ''}\nReturn: ${QUESTION_SHAPE}` }] }],
           json: true,
         };
       }
