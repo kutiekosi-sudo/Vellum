@@ -156,7 +156,7 @@ service cloud.firestore {
                 && (get(/databases/$(database)/documents/classes/$(c)/assignments/$(a)).data.get('allowResubmit', false) == true
                     || resource.data.get('status', '') == 'returned')
                 && request.resource.data.diff(resource.data).affectedKeys()
-                     .hasOnly(['text', 'links', 'files', 'submittedAt', 'attempt', 'status'])
+                     .hasOnly(['text', 'links', 'files', 'attachments', 'submittedAt', 'attempt', 'status'])
                 && request.resource.data.submittedAt == request.time);
           allow delete: if false;
         }

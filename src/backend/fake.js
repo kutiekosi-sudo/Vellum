@@ -147,7 +147,7 @@ function checkWrite(op, path, data, existing) {
       if (isTeacherOf(c) && diff.every((k) => ['grade', 'feedback', 'gradedAt', 'gradedBy', 'status', 'rubricScores', 'viewedAt'].includes(k))) return;
       if (isActive(c) && s[5] === U() && (a.allowResubmit === true || existing.status === 'returned')
         && data.submittedAt && data.submittedAt.__ts
-        && diff.every((k) => ['text', 'links', 'files', 'submittedAt', 'attempt', 'status'].includes(k))) return;
+        && diff.every((k) => ['text', 'links', 'files', 'attachments', 'submittedAt', 'attempt', 'status'].includes(k))) return;
       throw denied();
     }
     throw denied();

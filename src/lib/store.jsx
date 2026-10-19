@@ -35,7 +35,7 @@ export function AppProvider({ children }) {
 
   useEffect(() => {
     const off = auth.onChange((u) => {
-      if (!u) { seq.current++; setUser(null); setProfile(null); setStatus('out'); return; }
+      if (!u) { seq.current++; setUser(null); setProfile(null); setToasts([]); setStatus('out'); return; }
       loadProfile(u);
     });
     return typeof off === 'function' ? off : undefined;

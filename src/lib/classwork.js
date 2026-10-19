@@ -22,6 +22,7 @@ export const isLate = (sub, assignment) => !!(assignment && assignment.dueAt && 
 export function submissionState(sub, assignment) {
   if (!sub) return { key: 'todo', label: assignment && assignment.dueAt && Date.now() > assignment.dueAt ? 'Missing' : 'Not submitted', tone: assignment && assignment.dueAt && Date.now() > assignment.dueAt ? 'warn' : '' };
   if (sub.status === 'returned') return { key: 'returned', label: 'Returned for changes', tone: 'warn' };
+  if (sub.gradedAt && sub.submittedAt > sub.gradedAt) return { key: 'resubmitted', label: 'Resubmitted, needs regrading', tone: 'info' };
   if (sub.grade != null && sub.grade !== '') return { key: 'graded', label: 'Graded', tone: 'ok' };
   return isLate(sub, assignment) ? { key: 'late', label: 'Submitted late', tone: 'warn' } : { key: 'submitted', label: 'Submitted', tone: 'info' };
 }
