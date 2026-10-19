@@ -4,7 +4,7 @@
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
 import {
-  getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, signOut as fbSignOut, onAuthStateChanged,
+  getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut as fbSignOut, onAuthStateChanged,
 } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js';
 import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, getDoc, setDoc, updateDoc, deleteDoc,
@@ -26,6 +26,8 @@ const FIRESTORE_DATABASE_ID = 'default';
 
 const app = initializeApp(firebaseConfig);
 const fbAuth = getAuth(app);
+// If a redirect sign-in comes back with an error, keep it so the sign-in screen can say what went wrong.
+const redirectDone = getRedirectResult(fbAuth).then(() => null, (e) => { console.error('Redirect sign-in failed', e); return e; });
 
 let fdb;
 try {
@@ -80,6 +82,18 @@ export const auth = {
     }
   },
   signOut: () => fbSignOut(fbAuth),
+  redirectError: () => redirectDone,
+  // Google only lets approved web addresses sign in. Ask Firebase for its list so we can say so plainly.
+  async checkDomain() {
+    const host = window.location.hostname;
+    if (host === 'localhost' || host === '127.0.0.1') return { ok: true, known: true, host };
+    try {
+      const r = await fetch(`https://www.googleapis.com/identitytoolkit/v3/relyingparty/getProjectConfig?key=${firebaseConfig.apiKey}`);
+      if (!r.ok) return { ok: true, known: false, host };
+      const list = (await r.json()).authorizedDomains || [];
+      return { ok: list.includes(host), known: list.length > 0, host };
+    } catch { return { ok: true, known: false, host }; }
+  },
   async token() { return fbAuth.currentUser ? fbAuth.currentUser.getIdToken() : null; },
 };
 

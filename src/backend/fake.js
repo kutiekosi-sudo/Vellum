@@ -269,6 +269,8 @@ export const auth = {
     setUser(next);
   },
   async signOut() { setUser(null); },
+  async redirectError() { return window.__fake.redirectErr || null; },
+  async checkDomain() { return window.__fake.domainBad ? { ok: false, known: true, host: 'learnr-study.netlify.app' } : { ok: true, known: true, host: 'test' }; },
   async token() { return currentUser ? 'fake-token-' + currentUser.uid : null; },
 };
 function setUser(u) {

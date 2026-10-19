@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { auth } from '../backend/index.js';
 import { friendlyError } from '../lib/util.js';
 import { useApp } from '../lib/store.jsx';
@@ -35,16 +35,36 @@ function Hero({ children }) {
 export function Login() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const [slow, setSlow] = useState(false);
+  const [badHost, setBadHost] = useState('');
+  useEffect(() => {
+    let live = true;
+    auth.checkDomain().then((r) => { if (live && r && r.known && !r.ok) setBadHost(r.host); }).catch(() => {});
+    auth.redirectError().then((e) => { if (live && e) setErr(friendlyError(e) + (e.code ? ` (${e.code})` : '')); }).catch(() => {});
+    return () => { live = false; };
+  }, []);
+  useEffect(() => {
+    if (!busy) { setSlow(false); return undefined; }
+    const t = setTimeout(() => setSlow(true), 6000);
+    return () => clearTimeout(t);
+  }, [busy]);
   const go = async () => {
     setErr(''); setBusy(true);
-    try { await auth.signIn(); } catch (e) { setErr(friendlyError(e)); } finally { setBusy(false); }
+    try { await auth.signIn(); } catch (e) { console.error(e); setErr(friendlyError(e) + (e.code ? ` (${e.code})` : '')); } finally { setBusy(false); }
   };
   return (
     <Hero>
       <Card className="stack">
         <h1 style={{ fontSize: 22 }}>Welcome</h1>
         <p className="muted">Classes, assignments, tests and study tools for teachers and students, in one place.</p>
+        {badHost && (
+          <Notice tone="warn">
+            <strong>Google will not let you sign in from this address yet.</strong>
+            <p style={{ marginTop: 4 }}>The site address <b className="break">{badHost}</b> is not on Firebase's approved list. In the Firebase console open Authentication, then Settings, then Authorized domains, tap Add domain, and enter <b className="break">{badHost}</b>.</p>
+          </Notice>
+        )}
         {err && <Notice tone="bad">{err}</Notice>}
+        {slow && !err && <Notice>Still waiting for Google. If no sign-in window opened, allow pop-ups for this site, or close any Google window that is still open and try again.</Notice>}
         <Button block loading={busy} onClick={go}>Continue with Google</Button>
         <p className="muted small">We only use your Google name, email and photo to set up your account.</p>
       </Card>
