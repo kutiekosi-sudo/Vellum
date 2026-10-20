@@ -209,7 +209,7 @@ export function friendlyError(e, fallback = 'Something went wrong. Please try ag
   const code = e.code || '';
   if (code === 'permission-denied') return "You don't have permission to do that. If this seems wrong, sign out and back in.";
   if (code === 'unavailable' || /offline/i.test(e.message || '')) return "You're offline or the connection dropped. Check your internet and try again.";
-  if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') return 'The sign-in window was closed before finishing. Try again.';
+  if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') return 'The sign-in window closed before it finished. If you did not close it, your browser may be blocking it. Try the full-page option below.';
   if (code === 'auth/unauthorized-domain') return 'This web address is not allowed to sign in yet. Add it under Authentication, Settings, Authorized domains in the Firebase console.';
   if (code === 'auth/network-request-failed') return 'The network dropped during sign-in. Check your connection and try again.';
   if (code === 'auth/operation-not-allowed') return 'Google sign-in is switched off. Turn it on under Authentication, Sign-in method in the Firebase console.';

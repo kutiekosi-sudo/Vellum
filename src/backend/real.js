@@ -67,19 +67,29 @@ const cleanUser = (u) => (u ? { uid: u.uid, displayName: u.displayName || '', em
 
 export const auth = {
   onChange(cb) { return onAuthStateChanged(fbAuth, (u) => cb(cleanUser(u))); },
-  async signIn() {
+  // method: 'popup' (a small window) or 'redirect' (the whole page goes to Google and comes back).
+  // Tablets and phones often cannot hand a pop-up's result back to the page, so they default to redirect.
+  async signIn(method) {
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
+    const touch = typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
+    const how = method || (touch ? 'redirect' : 'popup');
+    const viaRedirect = async () => {
+      try { sessionStorage.setItem('learnr-redirecting', String(Date.now())); } catch { /* storage may be blocked */ }
+      await signInWithRedirect(fbAuth, provider);
+    };
+    if (how === 'redirect') return viaRedirect();
     try {
       await signInWithPopup(fbAuth, provider);
     } catch (e) {
-      // Many tablets and in-app browsers block pop-ups. A full-page redirect always works.
-      if (['auth/popup-blocked', 'auth/operation-not-supported-in-this-environment', 'auth/web-storage-unsupported'].includes(e.code)) {
-        await signInWithRedirect(fbAuth, provider);
-        return;
-      }
+      if (['auth/popup-blocked', 'auth/operation-not-supported-in-this-environment', 'auth/web-storage-unsupported'].includes(e.code)) return viaRedirect();
       throw e;
     }
+    return undefined;
+  },
+  // True if we sent the person to Google and they have come back (used to explain a silent failure).
+  cameBackFromRedirect() {
+    try { const t = sessionStorage.getItem('learnr-redirecting'); sessionStorage.removeItem('learnr-redirecting'); return !!t && Date.now() - Number(t) < 10 * 60 * 1000; } catch { return false; }
   },
   signOut: () => fbSignOut(fbAuth),
   redirectError: () => redirectDone,

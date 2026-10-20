@@ -263,11 +263,14 @@ const tick = () => new Promise((r) => setTimeout(r, window.__fake && window.__fa
 // ---------- auth ----------
 export const auth = {
   onChange(cb) { authCbs.add(cb); setTimeout(() => cb(currentUser ? { ...currentUser } : null), 0); return () => authCbs.delete(cb); },
-  async signIn() {
+  async signIn(method) {
     await tick();
+    if (window.__fake.popupFail && method !== 'redirect') throw Object.assign(new Error('closed'), { code: 'auth/popup-closed-by-user' });
+    window.__fake.lastSignInMethod = method || 'default';
     const next = window.__fake.nextUser || { uid: 'u-demo', displayName: 'Demo Student', email: 'demo@example.com' };
     setUser(next);
   },
+  cameBackFromRedirect() { return !!window.__fake.cameBack; },
   async signOut() { setUser(null); },
   async redirectError() { return window.__fake.redirectErr || null; },
   async checkDomain() { return window.__fake.domainBad ? { ok: false, known: true, host: 'learnr-study.netlify.app' } : { ok: true, known: true, host: 'test' }; },

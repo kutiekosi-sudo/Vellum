@@ -40,7 +40,12 @@ export function Login() {
   useEffect(() => {
     let live = true;
     auth.checkDomain().then((r) => { if (live && r && r.known && !r.ok) setBadHost(r.host); }).catch(() => {});
-    auth.redirectError().then((e) => { if (live && e) setErr(friendlyError(e) + (e.code ? ` (${e.code})` : '')); }).catch(() => {});
+    auth.redirectError().then((e) => {
+      if (!live) return;
+      const back = auth.cameBackFromRedirect();
+      if (e) { setErr(friendlyError(e) + (e.code ? ` (${e.code})` : '')); setFailed(true); }
+      else if (back) { setCameBack(true); setFailed(true); }
+    }).catch(() => {});
     return () => { live = false; };
   }, []);
   useEffect(() => {
@@ -48,9 +53,11 @@ export function Login() {
     const t = setTimeout(() => setSlow(true), 6000);
     return () => clearTimeout(t);
   }, [busy]);
-  const go = async () => {
-    setErr(''); setBusy(true);
-    try { await auth.signIn(); } catch (e) { console.error(e); setErr(friendlyError(e) + (e.code ? ` (${e.code})` : '')); } finally { setBusy(false); }
+  const [cameBack, setCameBack] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const go = async (method) => {
+    setErr(''); setFailed(false); setCameBack(false); setBusy(true);
+    try { await auth.signIn(method); } catch (e) { console.error(e); setFailed(true); setErr(friendlyError(e) + (e.code ? ` (${e.code})` : '')); } finally { setBusy(false); }
   };
   return (
     <Hero>
@@ -65,7 +72,14 @@ export function Login() {
         )}
         {err && <Notice tone="bad">{err}</Notice>}
         {slow && !err && <Notice>Still waiting for Google. If no sign-in window opened, allow pop-ups for this site, or close any Google window that is still open and try again.</Notice>}
-        <Button block loading={busy} onClick={go}>Continue with Google</Button>
+        {cameBack && !err && <Notice tone="warn">Google sent you back, but this browser did not finish signing you in. This usually means it is blocking sign-in cookies. Try the pop-up option below, or open this site in Chrome or Safari directly instead of inside another app.</Notice>}
+        <Button block loading={busy} onClick={() => go()}>Continue with Google</Button>
+        {failed && (
+          <div className="stack sm">
+            <Button block variant="secondary" disabled={busy} onClick={() => go('redirect')}>Sign in on this whole page instead</Button>
+            <Button block variant="ghost" disabled={busy} onClick={() => go('popup')}>Try the pop-up window again</Button>
+          </div>
+        )}
         <p className="muted small">We only use your Google name, email and photo to set up your account.</p>
       </Card>
     </Hero>
