@@ -15,14 +15,14 @@
 
 import { HttpError, safeId, newId } from './shared.mjs';
 import {
-  cleanQuestions, makeAttempt, gradeAttempt, studentView, startPayload, buildAnalytics, GRACE_MS,
+  cleanQuestions, cleanTheory, cleanTheoryAnswers, applyTheoryMarks, makeAttempt, gradeAttempt, studentView, startPayload, buildAnalytics, GRACE_MS,
 } from './cbtcore.mjs';
 
 export function makeActions(io) {
   // A timed attempt that ran out of time is graded from the last saved progress.
   async function finalizeIfExpired(attempt, qdoc) {
     if (attempt.submittedAt || io.now() <= attempt.expiresAt + GRACE_MS) return attempt;
-    const done = { ...attempt, ...gradeAttempt(qdoc, attempt, attempt.progress || {}), submittedAt: attempt.expiresAt, autoSubmitted: true };
+    const done = { ...attempt, ...gradeAttempt(qdoc, attempt, attempt.progress || {}), theoryAnswers: attempt.progressTheory || {}, submittedAt: attempt.expiresAt, autoSubmitted: true };
     await io.putAttempt(done);
     return done;
   }
@@ -31,16 +31,19 @@ export function makeActions(io) {
     async saveQuestions(user, body) {
       safeId(body.cbtId);
       await io.requireTeacher(body.classId, user);
-      const questions = cleanQuestions(body.questions);
-      await io.putQuestions(body.classId, body.cbtId, { questions, updatedAt: io.now(), updatedBy: user.uid });
-      return { ok: true, count: questions.length, questions };
+      const theory = cleanTheory(body.theory);
+      const given = Array.isArray(body.questions) ? body.questions : [];
+      if (!given.length && !theory.length) throw new HttpError(400, 'Add at least one question.', 'no_questions');
+      const questions = given.length ? cleanQuestions(given) : [];
+      await io.putQuestions(body.classId, body.cbtId, { questions, theory, updatedAt: io.now(), updatedBy: user.uid });
+      return { ok: true, count: questions.length, theoryCount: theory.length, questions, theory };
     },
 
     async getQuestions(user, body) {
       safeId(body.cbtId);
       await io.requireTeacher(body.classId, user);
       const doc = await io.getQuestions(body.classId, body.cbtId);
-      return { questions: doc ? doc.questions : [] };
+      return { questions: doc ? doc.questions : [], theory: doc ? doc.theory || [] : [] };
     },
 
     async start(user, body) {
@@ -56,7 +59,7 @@ export function makeActions(io) {
       if (meta.closesAt && now > meta.closesAt) throw new HttpError(403, 'This CBT has closed.', 'closed');
 
       const qdoc = await io.getQuestions(body.classId, body.cbtId);
-      if (!qdoc || !qdoc.questions.length) throw new HttpError(409, 'This CBT has no questions yet.', 'no_questions');
+      if (!qdoc || (!qdoc.questions.length && !(qdoc.theory || []).length)) throw new HttpError(409, 'This CBT has no questions yet.', 'no_questions');
 
       let attempts = await io.listAttempts(body.classId, body.cbtId, user.uid);
       attempts = await Promise.all(attempts.map((a) => finalizeIfExpired(a, qdoc)));
@@ -82,7 +85,9 @@ export function makeActions(io) {
       if (io.now() > attempt.expiresAt + GRACE_MS) throw new HttpError(409, 'Time is up for this attempt.', 'expired');
       const clean = {};
       for (const [k, v] of Object.entries(body.answers || {})) if (attempt.order[k] && Number.isInteger(v)) clean[k] = v;
-      await io.putAttempt({ ...attempt, progress: clean });
+      const qdoc = await io.getQuestions(body.classId, body.cbtId);
+      const progressTheory = qdoc ? cleanTheoryAnswers(qdoc, body.theory) : {};
+      await io.putAttempt({ ...attempt, progress: clean, progressTheory });
       return { ok: true };
     },
 
@@ -99,7 +104,8 @@ export function makeActions(io) {
         const clean = {};
         const source = inTime ? body.answers || {} : attempt.progress || {};
         for (const [k, v] of Object.entries(source)) if (attempt.order[k] && Number.isInteger(v)) clean[k] = v;
-        attempt = { ...attempt, ...gradeAttempt(qdoc, attempt, clean), submittedAt: io.now(), autoSubmitted: !inTime };
+        const theoryAnswers = cleanTheoryAnswers(qdoc, inTime ? body.theory || {} : attempt.progressTheory || {});
+        attempt = { ...attempt, ...gradeAttempt(qdoc, attempt, clean), theoryAnswers, theoryGraded: false, submittedAt: io.now(), autoSubmitted: !inTime };
         await io.putAttempt(attempt);
       }
       return studentView(attempt, meta, qdoc);
@@ -133,6 +139,38 @@ export function makeActions(io) {
       let attempts = await io.listAttempts(body.classId, body.cbtId);
       if (qdoc) attempts = await Promise.all(attempts.map((a) => finalizeIfExpired(a, qdoc)));
       return buildAnalytics(qdoc, attempts);
+    },
+
+    // Teacher: every student's latest submitted attempt, with their written answers, for marking.
+    async theorySubmissions(user, body) {
+      safeId(body.cbtId);
+      await io.requireTeacher(body.classId, user);
+      const qdoc = await io.getQuestions(body.classId, body.cbtId);
+      if (!qdoc || !(qdoc.theory || []).length) return { theory: [], items: [] };
+      const latest = new Map();
+      for (const a of await io.listAttempts(body.classId, body.cbtId)) {
+        if (a.submittedAt && (!latest.has(a.uid) || latest.get(a.uid).submittedAt < a.submittedAt)) latest.set(a.uid, a);
+      }
+      return {
+        theory: qdoc.theory,
+        items: [...latest.values()].map((a) => ({
+          attemptId: a.id, uid: a.uid, name: a.name, submittedAt: a.submittedAt, autoSubmitted: !!a.autoSubmitted,
+          answers: a.theoryAnswers || {}, marks: a.theoryMarks || {}, feedback: a.theoryFeedback || {},
+          graded: !!a.theoryGraded, score: a.theoryScore ?? null, total: a.theoryTotal ?? null,
+        })).sort((x, y) => String(x.name).localeCompare(String(y.name))),
+      };
+    },
+
+    async gradeTheory(user, body) {
+      safeId(body.cbtId); safeId(body.attemptId); safeId(body.uid);
+      await io.requireTeacher(body.classId, user);
+      const qdoc = await io.getQuestions(body.classId, body.cbtId);
+      if (!qdoc || !(qdoc.theory || []).length) throw new HttpError(409, 'This CBT has no theory questions.', 'no_theory');
+      const attempt = await io.getAttempt(body.classId, body.cbtId, body.uid, body.attemptId);
+      if (!attempt || !attempt.submittedAt) throw new HttpError(404, 'That submission was not found.', 'not_found');
+      const done = applyTheoryMarks(qdoc, attempt, body.marks, body.feedback, user.uid, io.now());
+      await io.putAttempt(done);
+      return { ok: true, score: done.theoryScore, total: done.theoryTotal };
     },
 
     async resetAttempts(user, body) {

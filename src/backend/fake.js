@@ -338,6 +338,7 @@ const sampleQuestions = (topic, n) => Array.from({ length: n }, (_, i) => ({
 }));
 
 function fakeAi(p) {
+  window.__fake.lastAi = JSON.parse(JSON.stringify(p));
   if (window.__fake.aiFail) throw new AppError('The AI is busy right now. Please try again in a moment.', 'ai_busy', 503);
   const ctxEcho = p.context ? ' (I can see your class data.)' : '';
   switch (p.mode) {
@@ -349,6 +350,7 @@ function fakeAi(p) {
     case 'study_plan': return { data: { summary: 'Short sessions on your weakest topic first.', days: [{ day: 'Mon', focus: 'Maths: fractions', minutes: 25, tasks: ['Review notes', 'Do 5 questions'] }, { day: 'Tue', focus: 'Rest', minutes: 0, tasks: ['Take a break'] }] } };
     case 'break_down': return { data: { steps: [{ title: 'Read the instructions', minutes: 10, tip: 'Underline the verbs.' }, { title: 'Plan your answer', minutes: 15, tip: 'Write three bullet points.' }] } };
     case 'teacher_generate':
+      if (p.kind === 'theory_questions') return { data: [{ text: `Explain ${p.topic || 'the topic'} in your own words.`, marks: 10, guide: 'Definition, one example, one consequence.', topic: p.topic || '' }, { text: `Give two examples of ${p.topic || 'the topic'} from daily life.`, marks: 4, guide: 'Any two valid examples.', topic: p.topic || '' }].slice(0, p.count || 2) };
       if (['cbt_questions', 'revision_questions'].includes(p.kind)) return { data: sampleQuestions(p.topic, Math.min(p.count || 5, 8)) };
       return { text: `Draft (${p.kind}): ${p.topic || ''}` };
     default: throw new AppError('Unknown AI mode.', 'bad_mode', 400);

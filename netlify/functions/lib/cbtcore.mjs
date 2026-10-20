@@ -39,6 +39,53 @@ export function cleanQuestions(input) {
   });
 }
 
+export const MAX_THEORY = 30;
+
+// Written questions: the marking guide is for the teacher only and never sent to students.
+export function cleanTheory(input) {
+  if (input == null) return [];
+  if (!Array.isArray(input)) throw new HttpError(400, 'Theory questions are not valid.', 'bad_theory');
+  if (input.length > MAX_THEORY) throw new HttpError(400, `A CBT can have at most ${MAX_THEORY} theory questions.`, 'too_many');
+  const seen = new Set();
+  return input.map((q, i) => {
+    const text = String(q?.text || '').trim().slice(0, 3000);
+    if (!text) throw new HttpError(400, `Theory question ${i + 1} has no text.`, 'bad_theory');
+    let id = typeof q?.id === 'string' && /^[A-Za-z0-9_-]{3,40}$/.test(q.id) ? q.id : newId(6);
+    while (seen.has(id)) id = newId(6);
+    seen.add(id);
+    return {
+      id, text,
+      marks: Math.min(50, Math.max(1, Math.round(Number(q?.marks) || 5))),
+      guide: String(q?.guide || '').trim().slice(0, 3000),
+      topic: String(q?.topic || '').trim().slice(0, 80),
+    };
+  });
+}
+
+export const cleanTheoryAnswers = (qdoc, input) => {
+  const out = {};
+  for (const t of qdoc.theory || []) {
+    const v = input && input[t.id];
+    if (typeof v === 'string' && v.trim()) out[t.id] = v.slice(0, 8000);
+  }
+  return out;
+};
+
+// Apply a teacher's marks to an attempt. Marks are clamped to each question's maximum.
+export function applyTheoryMarks(qdoc, attempt, marks, feedback, uid, now) {
+  const m = {}; const f = {};
+  let score = 0; let total = 0;
+  for (const t of qdoc.theory || []) {
+    total += t.marks;
+    const raw = marks ? Number(marks[t.id]) : NaN;
+    const val = Number.isFinite(raw) ? Math.min(t.marks, Math.max(0, Math.round(raw * 2) / 2)) : 0;
+    m[t.id] = val; score += val;
+    const fb = feedback && typeof feedback[t.id] === 'string' ? feedback[t.id].trim().slice(0, 2000) : '';
+    if (fb) f[t.id] = fb;
+  }
+  return { ...attempt, theoryMarks: m, theoryFeedback: f, theoryScore: score, theoryTotal: total, theoryGraded: true, theoryGradedAt: now, theoryGradedBy: uid };
+}
+
 function hashSeed(str) {
   let h = 1779033703 ^ str.length;
   for (let i = 0; i < str.length; i++) {
@@ -82,7 +129,7 @@ export function makeAttempt({ id, classId, cbtId, uid, name, qdoc, meta, now }) 
   if (!duration && meta.closesAt && meta.closesAt + GRACE_MS < expiresAt) expiresAt = meta.closesAt + GRACE_MS;
   return {
     id, cbtId, classId, uid, name: name || '',
-    startedAt: now, expiresAt, questionOrder, order, progress: {}, submittedAt: null,
+    startedAt: now, expiresAt, questionOrder, order, progress: {}, progressTheory: {}, submittedAt: null,
   };
 }
 
@@ -138,6 +185,21 @@ export function studentView(attempt, meta, qdoc) {
     correctCount: attempt.correctCount, incorrectCount: attempt.incorrectCount, missedCount: attempt.missedCount,
     topics: attempt.topics,
   };
+  if (qdoc && (qdoc.theory || []).length) {
+    out.theory = qdoc.theory.map((t) => ({
+      id: t.id, text: t.text, marks: t.marks,
+      answer: (attempt.theoryAnswers || {})[t.id] || '',
+      mark: attempt.theoryGraded ? (attempt.theoryMarks || {})[t.id] ?? 0 : null,
+      feedback: attempt.theoryGraded ? (attempt.theoryFeedback || {})[t.id] || '' : '',
+    }));
+    out.theoryGraded = !!attempt.theoryGraded;
+    out.theoryScore = attempt.theoryGraded ? attempt.theoryScore : null;
+    out.theoryTotal = qdoc.theory.reduce((n, t) => n + t.marks, 0);
+    if (attempt.theoryGraded) {
+      const sc = (attempt.score || 0) + attempt.theoryScore; const tt = (attempt.total || 0) + out.theoryTotal;
+      out.combinedPct = tt ? Math.round((sc / tt) * 100) : 0;
+    }
+  }
   if (meta.showReview !== false && qdoc) {
     out.review = qdoc.questions.map((q) => {
       const map = attempt.order?.[q.id] || q.options.map((_, i) => i);
@@ -165,6 +227,8 @@ export function startPayload(attempt, qdoc, meta, now = Date.now()) {
     serverNow: now,
     durationMin: Number(meta.timeLimitMin) || 0,
     answers: attempt.progress || {},
+    theory: (qdoc.theory || []).map((t) => ({ id: t.id, text: t.text, marks: t.marks })),
+    theoryAnswers: attempt.progressTheory || {},
     questions: attempt.questionOrder.map((qid) => {
       const q = byId[qid];
       return { id: q.id, text: q.text, points: q.points, options: attempt.order[qid].map((i) => q.options[i]) };

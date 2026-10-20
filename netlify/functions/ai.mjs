@@ -6,12 +6,39 @@
 //
 // POST /.netlify/functions/ai  { mode, ...payload }  ->  { text } or { data }
 
-import { handle, json, readJson, verifyIdToken, userRole, rateLimit, HttpError } from './lib/common.mjs';
+import { handle, json, readJson, verifyIdToken, userRole, rateLimit, HttpError, store, requireTeacher, safeId } from './lib/common.mjs';
 
 const MODEL = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
 
 const s = (v, max = 2000) => String(v ?? '').slice(0, max);
 const n = (v, lo, hi, d) => Math.min(hi, Math.max(lo, Number(v) || d));
+
+// Class files a teacher ticks to base AI questions on. Gemini reads PDFs and images directly; plain text is passed as text.
+const FILE_MIME = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp' };
+const FILE_TEXT = new Set(['txt', 'md', 'csv']);
+const MAX_AI_FILES = 3;
+const MAX_AI_FILE_BYTES = 4 * 1024 * 1024;
+
+async function loadClassFiles(user, body) {
+  await requireTeacher(body.classId, user); // only the class teacher can feed the class's files to the AI
+  const ids = [...new Set(body.fileIds)].slice(0, MAX_AI_FILES).map((id) => safeId(id));
+  const st = store('learnr-files');
+  const parts = []; const names = [];
+  for (const id of ids) {
+    const meta = await st.get(`m/${body.classId}/${id}`, { type: 'json' });
+    if (!meta || meta.classId !== body.classId) throw new HttpError(404, 'One of the selected files was not found.', 'not_found');
+    const ext = String(meta.ext || '').toLowerCase();
+    if (!FILE_MIME[ext] && !FILE_TEXT.has(ext)) throw new HttpError(415, `The AI can read PDFs, photos and text files. "${meta.name}" is a different type: copy its text into the notes box instead.`, 'bad_type');
+    if (meta.size > MAX_AI_FILE_BYTES) throw new HttpError(413, `"${meta.name}" is too large for the AI to read.`, 'too_large');
+    const buf = await st.get(`d/${body.classId}/${id}`, { type: 'arrayBuffer' });
+    if (!buf) throw new HttpError(404, 'One of the selected files was not found.', 'not_found');
+    names.push(meta.name);
+    parts.push({ text: `--- Teacher's file: ${meta.name} ---` });
+    if (FILE_MIME[ext]) parts.push({ inline_data: { mime_type: FILE_MIME[ext], data: Buffer.from(buf).toString('base64') } });
+    else parts.push({ text: Buffer.from(buf).toString('utf8').slice(0, 30000) });
+  }
+  return { parts, names };
+}
 
 const STUDENT_RULES = `You are Learnr's study coach, talking to a secondary-school student.
 - Help them learn. Do not simply hand over finished homework: explain the idea, give a worked example on a similar problem, then guide them through their own problem with hints and questions.
@@ -100,7 +127,7 @@ const MODES = {
     build: (p) => ({
       system: JSON_ONLY,
       contents: [{ role: 'user', parts: [{ text:
-        `Write ${n(p.count, 3, 10, 5)} multiple-choice practice questions on "${s(p.topic, 120)}" (${s(p.subject, 80) || 'general'}) for a student at this level: ${s(p.level, 80) || 'secondary school'}. Each has 4 options, exactly one correct. Mix recall and application.\nReturn: [{"text":"question","options":["A","B","C","D"],"correct":0,"explanation":"short explanation","topic":"${s(p.topic, 80)}"}]` }] }],
+        `Write ${n(p.count, 3, 10, 5)} multiple-choice practice questions on "${s(p.topic, 120)}" (${s(p.subject, 80) || 'general'}) for a student at this level: ${s(p.level, 80) || 'secondary school'}. Each has 4 options, exactly one correct. Mix recall and application.${p.notes ? `\nBase every question ONLY on these notes the student supplied; do not test anything they do not cover:\n${s(p.notes, 12000)}` : ''}\nReturn: [{"text":"question","options":["A","B","C","D"],"correct":0,"explanation":"short explanation","topic":"${s(p.topic, 80)}"}]` }] }],
     }),
   },
   study_plan: {
@@ -138,11 +165,22 @@ const MODES = {
         explain: 'Give three different ways to explain this to students: a plain explanation, a real-life example, and an analogy. Add a simple demonstration and 3 discussion questions.',
         theory_notes: 'Write clear revision notes for students on this topic: key concepts, definitions, formulas (if any), one worked example, and 3 quick self-check questions. Use short paragraphs and plain text.',
       };
+      const files = p._files ? p._files.parts : [];
+      const fromFiles = files.length ? `\nBase the questions ONLY on the teacher's attached file(s) and notes; do not test anything they do not cover.` : '';
+      const teacherPrompt = p.instructions ? `\nTeacher's own instructions (follow them closely): ${s(p.instructions, 1500)}` : '';
+      if (kind === 'theory_questions') {
+        return {
+          system: `${TEACHER_RULES}\n${JSON_ONLY}`,
+          contents: [{ role: 'user', parts: [{ text:
+            `${ctx}${teacherPrompt}\n\nWrite ${n(p.count, 1, 10, 4)} written (theory) exam questions at this class level. For each give "marks" (1 to 20, matching how much is expected) and a concise "guide": the points a good answer should contain, for the teacher's marking.${DIFFICULTY[s(p.difficulty, 20)] ? `\n${DIFFICULTY[s(p.difficulty, 20)]}` : ''}${fromFiles}\nReturn: [{"text":"question","marks":5,"guide":"key points","topic":"short topic name"}]` }, ...files] }],
+          json: true,
+        };
+      }
       if (kind === 'cbt_questions' || kind === 'revision_questions') {
         return {
           system: `${TEACHER_RULES}\n${JSON_ONLY}`,
           contents: [{ role: 'user', parts: [{ text:
-            `${ctx}\n\nWrite ${n(p.count, 3, 20, 8)} multiple-choice ${kind === 'revision_questions' ? 'revision' : 'assessment'} questions. 4 options each, exactly one correct, a clear explanation, a short topic name, and "skill" as "recall" or "application". Mix both skills.\n${DIFFICULTY[s(p.difficulty, 20)] || DIFFICULTY.mixed}\nPitch every question for students at this class level: ${s(p.level, 80) || 'secondary school'}.${p.notes ? '\nBase the questions ONLY on the notes provided; do not test anything the notes do not cover.' : ''}\nReturn: ${QUESTION_SHAPE}` }] }],
+            `${ctx}${teacherPrompt}\n\nWrite ${n(p.count, 3, 20, 8)} multiple-choice ${kind === 'revision_questions' ? 'revision' : 'assessment'} questions. 4 options each, exactly one correct, a clear explanation, a short topic name, and "skill" as "recall" or "application". Mix both skills.\n${DIFFICULTY[s(p.difficulty, 20)] || DIFFICULTY.mixed}\nPitch every question for students at this class level: ${s(p.level, 80) || 'secondary school'}.${p.notes ? '\nBase the questions ONLY on the notes provided; do not test anything the notes do not cover.' : ''}${fromFiles}\nReturn: ${QUESTION_SHAPE}` }, ...files] }],
           json: true,
         };
       }
@@ -195,6 +233,7 @@ export default handle(async (req) => {
   if (req.method !== 'POST') throw new HttpError(405, 'Method not allowed', 'method');
   const user = await verifyIdToken(req);
   const body = await readJson(req, 7 * 1024 * 1024);
+  delete body._files; // only the server may set this
   const mode = MODES[body.mode];
   if (!mode) throw new HttpError(400, 'Unknown AI mode.', 'bad_mode');
 
@@ -207,6 +246,7 @@ export default handle(async (req) => {
     ['day', 300, now.toISOString().slice(0, 10)],
   ]);
 
+  if (body.mode === 'teacher_generate' && Array.isArray(body.fileIds) && body.fileIds.length) body._files = await loadClassFiles(user, body);
   const built = mode.build(body);
   const wantsJson = built.json ?? mode.json ?? false;
   const { text, finishReason } = await callGemini({ system: built.system, contents: built.contents, maxTokens: mode.maxTokens });
