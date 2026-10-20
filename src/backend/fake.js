@@ -263,7 +263,8 @@ const tick = () => new Promise((r) => setTimeout(r, window.__fake && window.__fa
 // ---------- auth ----------
 export const auth = {
   onChange(cb) { authCbs.add(cb); setTimeout(() => cb(currentUser ? { ...currentUser } : null), 0); return () => authCbs.delete(cb); },
-  async signIn(method) {
+  async signIn(method, step = () => {}) {
+    step('Fake sign-in');
     await tick();
     if (window.__fake.popupFail && method !== 'redirect') throw Object.assign(new Error('closed'), { code: 'auth/popup-closed-by-user' });
     window.__fake.lastSignInMethod = method || 'default';

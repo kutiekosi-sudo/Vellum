@@ -69,19 +69,25 @@ export const auth = {
   onChange(cb) { return onAuthStateChanged(fbAuth, (u) => cb(cleanUser(u))); },
   // method: 'popup' (a small window) or 'redirect' (the whole page goes to Google and comes back).
   // Tablets and phones often cannot hand a pop-up's result back to the page, so they default to redirect.
-  async signIn(method) {
+  async signIn(method, step = () => {}) {
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
     const touch = typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
     const how = method || (touch ? 'redirect' : 'popup');
+    step(`Method: ${how === 'redirect' ? 'full page' : 'pop-up'} (touch screen: ${touch ? 'yes' : 'no'})`);
     const viaRedirect = async () => {
       try { sessionStorage.setItem('learnr-redirecting', String(Date.now())); } catch { /* storage may be blocked */ }
+      step('Sending you to Google now. If the page does not change, your browser is blocking the redirect.');
       await signInWithRedirect(fbAuth, provider);
+      step('The redirect call returned without leaving this page.');
     };
     if (how === 'redirect') return viaRedirect();
     try {
+      step('Opening the Google pop-up window.');
       await signInWithPopup(fbAuth, provider);
+      step('Google confirmed the sign-in.');
     } catch (e) {
+      step(`Pop-up ended with: ${e.code || e.message}`);
       if (['auth/popup-blocked', 'auth/operation-not-supported-in-this-environment', 'auth/web-storage-unsupported'].includes(e.code)) return viaRedirect();
       throw e;
     }
