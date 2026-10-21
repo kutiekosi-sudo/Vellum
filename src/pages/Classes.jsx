@@ -4,7 +4,7 @@ import { useLive } from '../lib/hooks.js';
 import { href, navigate } from '../lib/router.js';
 import { createClass, lookupCode, joinClass, leaveClass } from '../lib/classes.js';
 import { CLASS_COLORS, randomClassColor, normalizeCode } from '../lib/util.js';
-import { Button, Card, Empty, ErrorBlock, Modal, PageHead, PageSkeleton, TextField, TextArea, SelectField, Swatches, Notice, Badge, useConfirm } from '../ui/kit.jsx';
+import { Button, Card, Empty, ErrorBlock, Modal, PageHead, PageSkeleton, TextField, TextArea, SelectField, Swatches, Notice, Badge, TeacherQuote, useConfirm } from '../ui/kit.jsx';
 import { Icon } from '../ui/icons.jsx';
 
 function ClassCard({ c, children, to }) {
@@ -68,6 +68,7 @@ function TeacherClasses() {
   return (
     <>
       <PageHead title="Classes" sub="Your classrooms."><Button icon="plus" onClick={() => setOpen(true)}>Create class</Button></PageHead>
+      <TeacherQuote />
       {list.loading ? <PageSkeleton /> : list.error ? <ErrorBlock error={list.error} /> : classes.length === 0 ? (
         <Empty art="classroom" title="No classes yet" text="Create your first class and share its code with your students.">
           <Button icon="plus" onClick={() => setOpen(true)}>Create class</Button>

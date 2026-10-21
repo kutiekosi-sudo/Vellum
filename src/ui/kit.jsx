@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { Icon } from './icons.jsx';
 import { Art } from './art.jsx';
 import { cn, initials } from '../lib/util.js';
+import { quoteFor } from '../lib/quotes.js';
 import { useApp } from '../lib/store.jsx';
 
 export function Spinner({ className }) { return <span className={cn('spinner', className)} role="status" aria-label="Loading" />; }
@@ -247,5 +248,20 @@ export function CopyButton({ text, label = 'Copy', size = 'sm', variant = 'secon
     <Button size={size} variant={variant} icon="copy" onClick={async () => {
       try { await navigator.clipboard.writeText(text); toast('Copied'); } catch { toast('Copy did not work. Select the text and copy it by hand.', 'error'); }
     }}>{label}</Button>
+  );
+}
+
+// A gentle daily line of encouragement for teachers.
+export function TeacherQuote() {
+  const [offset, setOffset] = useState(0);
+  const q = quoteFor(new Date(), offset);
+  return (
+    <figure className="quote" aria-label="Encouragement for today">
+      <blockquote>{q.text}</blockquote>
+      <figcaption className="row between">
+        <span>{q.by ? q.by : 'Learnr'}</span>
+        <button type="button" className="btn ghost sm" onClick={() => setOffset((o) => o + 1)}>Another one</button>
+      </figcaption>
+    </figure>
   );
 }

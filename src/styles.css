@@ -382,3 +382,8 @@ a.item-row:hover { background: var(--surface-2); }
 .list-card { padding: 0; overflow: hidden; }
 .list-card > * + * { border-top: 1px solid var(--line); }
 .linklike:focus-visible, .item-row:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent, var(--brand)) 45%, transparent); outline-offset: -3px; }
+
+/* ---- teacher encouragement ---- */
+.quote { margin: 0 0 18px; padding: 16px 18px; border-radius: var(--r); background: var(--surface); border: 1px solid var(--line); border-left: 5px solid var(--brand); }
+.quote blockquote { margin: 0 0 6px; font-family: var(--font-head, inherit); font-size: 18px; line-height: 1.4; color: var(--ink); }
+.quote figcaption { color: var(--muted); font-size: 14px; }
