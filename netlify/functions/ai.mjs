@@ -8,8 +8,8 @@
 
 import { handle, json, readJson, verifyIdToken, userRole, rateLimit, HttpError, store, requireTeacher, safeId } from './lib/common.mjs';
 
-const MODEL = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
-const FALLBACK_MODEL = process.env.GEMINI_FALLBACK_MODEL || 'gemini-2.5-flash';
+const MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+const FALLBACK_MODEL = process.env.GEMINI_FALLBACK_MODEL || 'gemini-2.0-flash';
 
 const s = (v, max = 2000) => String(v ?? '').slice(0, max);
 const n = (v, lo, hi, d) => Math.min(hi, Math.max(lo, Number(v) || d));
@@ -214,7 +214,7 @@ async function callGemini({ system, contents, maxTokens }) {
   });
   // Google sometimes answers "high demand" (503) or rate-limits (429) for a few seconds. Retry quietly,
   // and on the last try switch to a lighter fallback model so the teacher still gets an answer.
-  const models = [MODEL, MODEL, FALLBACK_MODEL].filter((m, i, a) => m && (i < 2 || m !== a[0]));
+  const models = [MODEL, MODEL, FALLBACK_MODEL, 'gemini-flash-latest'].filter((m, i, a) => m && a.indexOf(m) === i || i === 1);
   let res, data;
   for (let i = 0; i < models.length; i++) {
     res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${models[i]}:generateContent`, {
@@ -223,8 +223,8 @@ async function callGemini({ system, contents, maxTokens }) {
       body,
     });
     data = await res.json().catch(() => ({}));
-    if (res.ok || ![429, 500, 503, 504].includes(res.status) || i === models.length - 1) break;
-    await new Promise((r) => setTimeout(r, 1200 * (i + 1)));
+    if (res.ok || ![404, 429, 500, 503, 504].includes(res.status) || i === models.length - 1) break;
+    if (res.status !== 404) await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
   }
   if (!res.ok) {
     const msg = data?.error?.message || 'The AI service returned an error.';
