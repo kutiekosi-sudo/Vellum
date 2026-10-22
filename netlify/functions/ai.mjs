@@ -229,7 +229,7 @@ async function callGemini({ system, contents, maxTokens }) {
   if (!res.ok) {
     const msg = data?.error?.message || 'The AI service returned an error.';
     if ([429, 503].includes(res.status) || /high demand|overloaded|try again later/i.test(msg)) {
-      throw new HttpError(503, 'The AI is very busy right now. Wait about a minute and press Generate again. Your notes and settings are still here.', 'ai_busy');
+      throw new HttpError(503, 'The AI is very busy right now. Wait about a minute and press Generate again. Your notes and settings are still here. (Google said ' + res.status + ': ' + String(msg).slice(0, 160) + ')', 'ai_busy');
     }
     throw new HttpError(502, `The AI could not answer: ${msg}`.slice(0, 300), 'ai_error');
   }
