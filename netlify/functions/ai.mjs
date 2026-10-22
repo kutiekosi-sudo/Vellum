@@ -216,15 +216,26 @@ async function callGemini({ system, contents, maxTokens }) {
   // and on the last try switch to a lighter fallback model so the teacher still gets an answer.
   const models = [MODEL, 'gemini-2.5-flash-lite', FALLBACK_MODEL, 'gemini-2.5-flash', 'gemini-flash-lite-latest'].filter((m, i, a) => m && a.indexOf(m) === i);
   let res, data;
+  const started = Date.now();
+  let lastErr = '';
   for (let i = 0; i < models.length; i++) {
-    res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${models[i]}:generateContent`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-      body,
-    });
-    data = await res.json().catch(() => ({}));
-    if (res.ok || ![404, 429, 500, 503, 504].includes(res.status) || i === models.length - 1) break;
-    if (res.status !== 404) await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
+    // Netlify cuts functions off after a short time, so stop trying before that happens.
+    if (i > 0 && Date.now() - started > 18000) break;
+    try {
+      res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${models[i]}:generateContent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+        body,
+        signal: AbortSignal.timeout(12000),
+      });
+      data = await res.json().catch(() => ({}));
+    } catch (e) {
+      lastErr = `${models[i]}: ${e && e.message ? e.message : e}`;
+      res = { ok: false, status: 503 };
+      data = { error: { message: `no answer from ${lastErr}` } };
+    }
+    if (res.ok || ![404, 429, 500, 503, 504].includes(res.status)) break;
+    if (res.status !== 404 && res.status !== 503) await new Promise((r) => setTimeout(r, 800));
   }
   if (!res.ok) {
     const msg = data?.error?.message || 'The AI service returned an error.';
@@ -258,10 +269,10 @@ export default handle(async (req) => {
     ['day', 300, now.toISOString().slice(0, 10)],
   ]);
 
-  if (body.mode === 'teacher_generate' && Array.isArray(body.fileIds) && body.fileIds.length) body._files = await loadClassFiles(user, body);
+  if (body.mode === 'teacher_generate' && Array.isArray(body.fileIds) && body.fileIds.length) body._files = await loadClassFiles(user, body).catch((e) => { if (e instanceof HttpError) throw e; throw new HttpError(502, 'Could not read the uploaded notes: ' + String(e && e.message).slice(0, 150), 'files_failed'); });
   const built = mode.build(body);
   const wantsJson = built.json ?? mode.json ?? false;
-  const { text, finishReason } = await callGemini({ system: built.system, contents: built.contents, maxTokens: mode.maxTokens });
+  const { text, finishReason } = await callGemini({ system: built.system, contents: built.contents, maxTokens: mode.maxTokens }).catch((e) => { if (e instanceof HttpError) throw e; throw new HttpError(502, 'The AI step failed: ' + String(e && e.message).slice(0, 150), 'ai_crash'); });
 
   if (!wantsJson) return json({ text, finishReason });
   try {
