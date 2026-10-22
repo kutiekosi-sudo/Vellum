@@ -214,7 +214,7 @@ async function callGemini({ system, contents, maxTokens }) {
   });
   // Google sometimes answers "high demand" (503) or rate-limits (429) for a few seconds. Retry quietly,
   // and on the last try switch to a lighter fallback model so the teacher still gets an answer.
-  const models = [MODEL, MODEL, FALLBACK_MODEL, 'gemini-flash-latest'].filter((m, i, a) => m && a.indexOf(m) === i || i === 1);
+  const models = [MODEL, 'gemini-2.5-flash-lite', FALLBACK_MODEL, 'gemini-2.5-flash', 'gemini-flash-lite-latest'].filter((m, i, a) => m && a.indexOf(m) === i);
   let res, data;
   for (let i = 0; i < models.length; i++) {
     res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${models[i]}:generateContent`, {
