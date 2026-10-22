@@ -9,6 +9,7 @@
 import { handle, json, readJson, verifyIdToken, userRole, rateLimit, HttpError, store, requireTeacher, safeId } from './lib/common.mjs';
 
 const MODEL = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
+const FALLBACK_MODEL = process.env.GEMINI_FALLBACK_MODEL || 'gemini-2.5-flash';
 
 const s = (v, max = 2000) => String(v ?? '').slice(0, max);
 const n = (v, lo, hi, d) => Math.min(hi, Math.max(lo, Number(v) || d));
@@ -205,20 +206,31 @@ function parseJsonLoose(text) {
 async function callGemini({ system, contents, maxTokens }) {
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw new HttpError(500, 'The AI is not configured yet (GEMINI_API_KEY is missing in Netlify).', 'ai_not_configured');
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: system }] },
-      contents,
-      // Headroom: newer Gemini models spend part of this budget on internal reasoning before they answer.
-      generationConfig: { maxOutputTokens: Math.min(16000, maxTokens * 2) },
-    }),
+  const body = JSON.stringify({
+    systemInstruction: { parts: [{ text: system }] },
+    contents,
+    // Headroom: newer Gemini models spend part of this budget on internal reasoning before they answer.
+    generationConfig: { maxOutputTokens: Math.min(16000, maxTokens * 2) },
   });
-  const data = await res.json().catch(() => ({}));
+  // Google sometimes answers "high demand" (503) or rate-limits (429) for a few seconds. Retry quietly,
+  // and on the last try switch to a lighter fallback model so the teacher still gets an answer.
+  const models = [MODEL, MODEL, FALLBACK_MODEL].filter((m, i, a) => m && (i < 2 || m !== a[0]));
+  let res, data;
+  for (let i = 0; i < models.length; i++) {
+    res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${models[i]}:generateContent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+      body,
+    });
+    data = await res.json().catch(() => ({}));
+    if (res.ok || ![429, 500, 503, 504].includes(res.status) || i === models.length - 1) break;
+    await new Promise((r) => setTimeout(r, 1200 * (i + 1)));
+  }
   if (!res.ok) {
     const msg = data?.error?.message || 'The AI service returned an error.';
-    if (res.status === 429) throw new HttpError(503, 'The AI is busy right now. Please try again in a moment.', 'ai_busy');
+    if ([429, 503].includes(res.status) || /high demand|overloaded|try again later/i.test(msg)) {
+      throw new HttpError(503, 'The AI is very busy right now. Wait about a minute and press Generate again. Your notes and settings are still here.', 'ai_busy');
+    }
     throw new HttpError(502, `The AI could not answer: ${msg}`.slice(0, 300), 'ai_error');
   }
   const cand = data.candidates && data.candidates[0];
