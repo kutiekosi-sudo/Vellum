@@ -9,7 +9,7 @@ import { Badge, Button, Card, Empty, ErrorBlock, Notice, PageSkeleton, Progress,
 
 const shuffle = (a) => { const c = [...a]; for (let i = c.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [c[i], c[j]] = [c[j], c[i]]; } return c; };
 
-function cleanQuestions(raw) {
+export function cleanQuestions(raw) {
   return (Array.isArray(raw) ? raw : []).map((q) => ({
     text: String(q.text || '').trim().slice(0, 600),
     options: (Array.isArray(q.options) ? q.options : []).map((o) => String(o || '').trim().slice(0, 300)).filter(Boolean).slice(0, 6),

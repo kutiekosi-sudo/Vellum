@@ -3,9 +3,11 @@ import { PageHead } from '../../ui/kit.jsx';
 import Focus from './Focus.jsx';
 import Practice from './Practice.jsx';
 import Cards from './Cards.jsx';
+import Learn from './Learn.jsx';
 
 const TABS = [
   { key: '', label: 'Focus timer', path: '/study' },
+  { key: 'learn', label: 'Prove it', path: '/study/learn' },
   { key: 'practice', label: 'Practice', path: '/study/practice' },
   { key: 'cards', label: 'Flashcards', path: '/study/cards' },
 ];
@@ -20,6 +22,7 @@ export default function StudyShell({ route }) {
         {TABS.map((t) => <a key={t.key} href={href(t.path)} aria-current={key === t.key ? 'page' : undefined}>{t.label}</a>)}
       </nav>
       {key === '' && <Focus />}
+      {key === 'learn' && <Learn />}
       {key === 'practice' && <Practice />}
       {key === 'cards' && <Cards />}
     </div>

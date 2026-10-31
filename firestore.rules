@@ -6,7 +6,7 @@ rules_version = '2';
 // Data model (all paths are inside the "default" database):
 //   users/{uid}                              profile + permanent role ('student' | 'teacher')
 //   users/{uid}/memberships/{classId}        classes a student has joined (private to the student)
-//   users/{uid}/studySessions|goals|...      private study data (private to the owner)
+//   users/{uid}/studySessions|goals|topics|...      private study data (private to the owner)
 //   users/{uid}/notifications/{id}           notifications (owner reads; people in the same class may create)
 //   classes/{classId}                        a classroom (owned by one teacher)
 //   classCodes/{CODE}                        join code -> class (get only, never listable)
@@ -75,7 +75,7 @@ service cloud.firestore {
       // Private per-user collections.
       match /{coll}/{docId} {
         allow read, write: if signedIn() && me() == u
-          && coll in ['memberships', 'studySessions', 'goals', 'flashcards', 'practice', 'aiChats', 'podMemberships'];
+          && coll in ['memberships', 'studySessions', 'goals', 'flashcards', 'practice', 'topics', 'aiChats', 'podMemberships'];
       }
 
       match /notifications/{n} {
