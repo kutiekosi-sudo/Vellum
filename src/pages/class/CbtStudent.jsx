@@ -202,7 +202,9 @@ function Exam({ cls, tid, meta, session, onDone }) {
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 500); return () => clearInterval(t); }, []);
   const left = Math.max(0, Math.round((session.expiresAt - (now + session.clockOffset)) / 1000));
 
-  const log = (k) => { events.current.push({ k, t: Date.now() + session.clockOffset, q: idx }); };
+  const idxRef = useRef(0);
+  idxRef.current = idx;
+  const log = (k) => { events.current.push({ k, t: Date.now() + session.clockOffset, q: idxRef.current }); };
 
   // Save progress: every few seconds when something changed, and after each answer.
   const dirty = useRef(false);
@@ -250,14 +252,15 @@ function Exam({ cls, tid, meta, session, onDone }) {
     const onVis = () => { if (document.hidden) { log('hidden'); setWarn('You left the test page. Your teacher can see this.'); } };
     const onBlur = () => { log('blur'); };
     const onFs = () => { if (!document.fullscreenElement) { log('fullscreen_exit'); setWarn('You left full screen. Your teacher can see this.'); } };
-    const stop = (k) => (e) => { e.preventDefault(); log(k); };
+    const onCopy = (e) => { e.preventDefault(); log('copy'); };
+    const onPaste = (e) => { e.preventDefault(); log('paste'); };
     const stopMenu = (e) => e.preventDefault();
     document.addEventListener('visibilitychange', onVis);
     window.addEventListener('blur', onBlur);
     document.addEventListener('fullscreenchange', onFs);
-    document.addEventListener('copy', stop('copy'));
-    document.addEventListener('cut', stop('copy'));
-    document.addEventListener('paste', stop('paste'));
+    document.addEventListener('copy', onCopy);
+    document.addEventListener('cut', onCopy);
+    document.addEventListener('paste', onPaste);
     document.addEventListener('contextmenu', stopMenu);
     const beforeUnload = (e) => { e.preventDefault(); e.returnValue = ''; };
     window.addEventListener('beforeunload', beforeUnload);
@@ -265,13 +268,13 @@ function Exam({ cls, tid, meta, session, onDone }) {
       document.removeEventListener('visibilitychange', onVis);
       window.removeEventListener('blur', onBlur);
       document.removeEventListener('fullscreenchange', onFs);
-      document.removeEventListener('copy', stop('copy'));
-      document.removeEventListener('cut', stop('copy'));
-      document.removeEventListener('paste', stop('paste'));
+      document.removeEventListener('copy', onCopy);
+      document.removeEventListener('cut', onCopy);
+      document.removeEventListener('paste', onPaste);
       document.removeEventListener('contextmenu', stopMenu);
       window.removeEventListener('beforeunload', beforeUnload);
     };
-  }, [idx]);
+  }, []);
 
   const choose = (qid, i) => { dirty.current = true; setAnswers((a) => ({ ...a, [qid]: i })); setTimeout(flush, 50); };
   const type = (id, v) => { dirty.current = true; setTheory((a) => ({ ...a, [id]: v.slice(0, 6000) })); };

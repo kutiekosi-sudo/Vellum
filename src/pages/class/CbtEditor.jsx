@@ -6,7 +6,8 @@ import { db } from '../../backend/index.js';
 import { cbt } from '../../lib/api.js';
 import { href } from '../../lib/router.js';
 import { toLocalInput, fromLocalInput } from '../../lib/util.js';
-import { Badge, Button, Card, Check, Empty, ErrorBlock, Notice, PageSkeleton, SectionTitle, SelectField, TextArea, TextField, useConfirm } from '../../ui/kit.jsx';
+import CbtResults from './CbtResults.jsx';
+import { Badge, Button, Seg, Card, Check, Empty, ErrorBlock, Notice, PageSkeleton, SectionTitle, SelectField, TextArea, TextField, useConfirm } from '../../ui/kit.jsx';
 import { Icon } from '../../ui/icons.jsx';
 import { AddQuestions, McqCard, TheoryCard, blankMcq, blankTheory, mcqProblem, theoryProblem, withKey } from './CbtQuestions.jsx';
 
@@ -160,11 +161,18 @@ function Editor({ cls, tid, meta, initial }) {
 }
 
 export default function CbtEditor({ cls, tid }) {
+  const [view, setView] = useState('edit');
   const meta = useLive(`classes/${cls.id}/cbts/${tid}`);
   const qdoc = useAsync(() => cbt('getQuestions', { classId: cls.id, cbtId: tid }), [cls.id, tid]);
   const back = <a className="btn ghost sm" href={href(`/class/${cls.id}/cbts`)}><Icon name="left" />CBTs</a>;
   if (meta.loading || qdoc.loading) return <PageSkeleton rows={3} />;
   if (meta.error || qdoc.error) return <ErrorBlock error={meta.error || qdoc.error} onRetry={qdoc.reload} />;
   if (!meta.data) return <Empty art="search" title="CBT not found" text="It may have been deleted.">{back}</Empty>;
-  return <Editor cls={cls} tid={tid} meta={meta.data} initial={{ questions: qdoc.data.questions || [], theory: qdoc.data.theory || [] }} />;
+  return (
+    <div className="stack lg">
+      {meta.data.published && <Seg label="View" value={view} onChange={setView} options={[{ value: 'edit', label: 'Questions and settings' }, { value: 'results', label: 'Results' }]} />}
+      <div style={{ display: view === 'edit' || !meta.data.published ? 'block' : 'none' }}><Editor cls={cls} tid={tid} meta={meta.data} initial={{ questions: qdoc.data.questions || [], theory: qdoc.data.theory || [] }} /></div>
+      {meta.data.published && view === 'results' && <CbtResults cls={cls} tid={tid} meta={meta.data} />}
+    </div>
+  );
 }
