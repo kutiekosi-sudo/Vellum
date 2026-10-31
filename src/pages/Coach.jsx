@@ -10,46 +10,60 @@ import { Icon } from '../ui/icons.jsx';
 
 const WELCOME = 'Hello. I am your Learnr study coach. Ask me to explain an idea, check your understanding, or help you plan your revision. You can also send a photo of a page or a question.';
 
+// Every message is its own record, so the history can grow as long as the student likes.
+// Only the most recent exchange is sent to the AI as context, so long chats never get slower or costlier.
+const PAGE = 60;
+
 function Chat({ context }) {
   const { user, fail } = useApp();
   const confirm = useConfirm();
-  const doc = useLive(`users/${user.uid}/aiChats/main`);
+  const [shown, setShown] = useState(PAGE);
+  const doc = useLive(`users/${user.uid}/aiChats`, { orderBy: ['at', 'desc'], limit: shown });
   const [text, setText] = useState('');
   const [photo, setPhoto] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [local, setLocal] = useState(null);
   const input = useRef(null);
   const end = useRef(null);
-  const messages = local || (doc.data && doc.data.messages) || [];
-  useEffect(() => { if (end.current && end.current.scrollIntoView) end.current.scrollIntoView({ block: 'end' }); }, [messages.length, busy]);
+  const newest = useRef(0);
+  const messages = (doc.data || []).filter((m) => m.role && m.content).slice().sort((a, b) => a.at - b.at);
+  const mayHaveMore = (doc.data || []).length >= shown;
+  useEffect(() => {
+    if (messages.length && messages[messages.length - 1].at !== newest.current && end.current && end.current.scrollIntoView) end.current.scrollIntoView({ block: 'end' });
+    if (messages.length) newest.current = messages[messages.length - 1].at;
+  }, [messages.length, busy]);
 
   const send = async () => {
     const q = text.trim();
     if (!q || busy) return;
-    const next = [...messages, { role: 'user', content: photo ? `${q}\n[photo attached]` : q, at: Date.now() }];
-    setLocal(next); setText(''); setBusy(true);
+    const at = Date.now();
+    const mine = { role: 'user', content: photo ? `${q}\n[photo attached]` : q, at };
+    const history = [...messages, mine].slice(-14).map((m) => ({ role: m.role, content: m.content }));
+    setText(''); setBusy(true);
     const file = photo; setPhoto(null);
     try {
-      const image = file ? await shrinkImage(file) : undefined;
-      // The photo is sent once, with this message, and is not stored.
-      const res = await ai('student_coach', { messages: next.map((m) => ({ role: m.role, content: m.content })), context, ...(image ? { image } : {}) });
-      const done = [...next, { role: 'assistant', content: String(res.text || '').slice(0, 6000), at: Date.now() }].slice(-40);
-      setLocal(done);
-      await db.set(`users/${user.uid}/aiChats/main`, { messages: done, updatedAt: Date.now() });
-    } catch (e) { fail(e); setText(q); setLocal(messages); } finally { setBusy(false); }
+      await db.add(`users/${user.uid}/aiChats`, mine);
+      const image = file ? await shrinkImage(file) : undefined; // sent once with this message, never stored
+      const res = await ai('student_coach', { messages: history, context, ...(image ? { image } : {}) });
+      await db.add(`users/${user.uid}/aiChats`, { role: 'assistant', content: String(res.text || '').slice(0, 6000), at: Math.max(Date.now(), at + 1) });
+    } catch (e) { fail(e); } finally { setBusy(false); }
   };
   const clear = async () => {
-    if (!(await confirm('Clear this conversation?', { title: 'Clear chat', confirmLabel: 'Clear', danger: true }))) return;
-    try { await db.set(`users/${user.uid}/aiChats/main`, { messages: [], updatedAt: Date.now() }); setLocal([]); } catch (e) { fail(e); }
+    if (!(await confirm('Delete this whole conversation? This cannot be undone.', { title: 'Clear chat', confirmLabel: 'Delete all', danger: true }))) return;
+    try {
+      const all = await db.list(`users/${user.uid}/aiChats`);
+      await db.batch(all.map((m) => ({ op: 'delete', path: `users/${user.uid}/aiChats/${m.id}` })));
+      setShown(PAGE);
+    } catch (e) { fail(e); }
   };
   if (doc.loading) return <PageSkeleton rows={2} />;
   return (
     <div className="stack">
       <Card className="stack" style={{ minHeight: 260 }} aria-live="polite">
-        <div className="coach-msg"><span className="muted small">Learnr</span><p className="pre">{WELCOME}</p></div>
-        {messages.map((m, i) => (
-          <div key={i} className="coach-msg" style={m.role === 'user' ? { background: 'var(--accent-soft, #e8f1ee)', borderRadius: 12, padding: '10px 12px' } : undefined}>
-            <span className="muted small">{m.role === 'user' ? 'You' : 'Learnr'}</span>
+        {mayHaveMore && <div><Button variant="ghost" size="sm" onClick={() => setShown(shown + PAGE)}>Show earlier messages</Button></div>}
+        {!mayHaveMore && <div className="coach-msg"><span className="muted small">Learnr</span><p className="pre">{WELCOME}</p></div>}
+        {messages.map((m) => (
+          <div key={m.id} className="coach-msg" style={m.role === 'user' ? { background: 'var(--accent-soft, #e8f1ee)', borderRadius: 12, padding: '10px 12px' } : undefined}>
+            <span className="muted small">{m.role === 'user' ? 'You' : 'Learnr'}, {fmtDate(m.at)}</span>
             <p className="pre break">{m.content}</p>
           </div>
         ))}
@@ -65,7 +79,7 @@ function Chat({ context }) {
           {messages.length > 0 && <Button variant="ghost" onClick={clear} disabled={busy}>Clear chat</Button>}
         </div>
         {photo && <span className="muted small break">Photo ready: {photo.name}</span>}
-        <p className="muted small">Only you see this chat. The coach explains and guides; it will not just do your homework for you.</p>
+        <p className="muted small">Your whole conversation is saved to your account, and only you can see it. The coach explains and guides; it will not just do your homework for you.</p>
       </Card>
     </div>
   );
