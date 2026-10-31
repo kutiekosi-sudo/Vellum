@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { useApp } from '../lib/store.jsx';
-import { useLive, useNow } from '../lib/hooks.js';
-import { db } from '../backend/index.js';
-import { PHASES, summarize, beep, minutesOf } from '../lib/study.js';
-import { fmtClock, fmtDateTime, plural } from '../lib/util.js';
-import { Badge, Button, Card, Empty, PageHead, Progress, SectionTitle, SelectField, Seg, TextField } from '../ui/kit.jsx';
+import { useApp } from '../../lib/store.jsx';
+import { useLive, useNow } from '../../lib/hooks.js';
+import { db } from '../../backend/index.js';
+import { PHASES, summarize, beep, minutesOf } from '../../lib/study.js';
+import { fmtClock, fmtDateTime, plural } from '../../lib/util.js';
+import { Badge, Button, Card, Empty, Progress, SectionTitle, SelectField, Seg, TextField } from '../../ui/kit.jsx';
 
 const KEY = 'learnr.timer.v1';
 const read = () => { try { return JSON.parse(localStorage.getItem(KEY)) || null; } catch { return null; } };
@@ -13,7 +13,7 @@ const write = (v) => { try { if (v) localStorage.setItem(KEY, JSON.stringify(v))
 const SETTINGS_KEY = 'learnr.timer.settings';
 const loadSettings = () => { try { return { focus: 25, short: 5, long: 15, ...(JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}) }; } catch { return { focus: 25, short: 5, long: 15 }; } };
 
-export default function Study() {
+export default function Focus() {
   const { user, toast, fail } = useApp();
   const sessions = useLive(`users/${user.uid}/studySessions`);
   const memberships = useLive(`users/${user.uid}/memberships`);
@@ -105,8 +105,6 @@ export default function Study() {
 
   return (
     <div className="stack lg">
-      <PageHead title="Study" sub="Study on your own or for one of your classes. Both count the same." />
-
       <Card className="stack" style={{ textAlign: 'center' }}>
         <div className="row wrap" style={{ justifyContent: 'center' }}>
           <Seg label="Timer" value={timer.phase} onChange={skipTo} options={Object.entries(PHASES).map(([k, v]) => ({ value: k, label: v.label }))} />
