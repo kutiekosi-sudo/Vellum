@@ -342,7 +342,7 @@ function fakeAi(p) {
   if (window.__fake.aiFail) throw new AppError('The AI is busy right now. Please try again in a moment.', 'ai_busy', 503);
   const ctxEcho = p.context ? ' (I can see your class data.)' : '';
   switch (p.mode) {
-    case 'student_coach': return { text: `Here is a simple way to think about it: start with the definition, then try one example.${ctxEcho}` };
+    case 'student_coach': return { text: `Here is a simple way to think about it: start with the definition, then try one example.${ctxEcho}${p.image ? ' (I can see your photo.)' : ''}` };
     case 'teacher_coach': return { text: 'Try three steps: a household example, a quick demonstration, then two discussion questions.' };
     case 'explain_mistake': return { data: { type: 'careless_slip', title: 'A quick slip', explanation: 'You knew the idea but picked the wrong option.', fix: 'Re-read each option before choosing.', example: '' } };
     case 'photo_flashcards': return { data: [{ front: 'Term A', back: 'Meaning A' }, { front: 'Term B', back: 'Meaning B' }] };

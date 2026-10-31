@@ -137,3 +137,20 @@ export function recurringMistakes(topics) {
   for (const t of topics) for (const m of t.misconceptions || []) counts[m.text] = (counts[m.text] || 0) + 1;
   return Object.entries(counts).filter(([, n]) => n >= 2).map(([text, n]) => ({ text, count: n })).sort((a, b) => b.count - a.count);
 }
+
+// A short, private summary the coach can use to give relevant help. Built on the student's device from their own data.
+export function studentContext(topics, sessions, now = Date.now()) {
+  if (!topics.length && !sessions.length) return '';
+  const lines = [];
+  const r = computeReadiness(topics, sessions, now);
+  if (topics.length) lines.push(`Exam readiness about ${r.score}% (${r.label}).`);
+  for (const t of topics.slice(0, 12)) {
+    const ret = computeRetention(t, now); const g = computeGhost(t);
+    lines.push(`${t.name}${t.subject ? ` (${t.subject})` : ''}: ${ret ? `about ${ret.retention}% remembered, last reviewed ${ret.daysSince} days ago` : 'not studied yet'}${g && g.flagged ? '; recognises answers but struggles to explain' : ''}${t.quiz ? `; last quiz ${t.quiz.score}%` : ''}`);
+  }
+  const rec = recurringMistakes(topics);
+  if (rec.length) lines.push(`Repeated mistakes: ${rec.slice(0, 4).map((m) => m.text).join('; ')}.`);
+  const week = sessions.filter((s) => (s.startedAt || 0) > now - 7 * DAY).reduce((n, s) => n + (s.durationSec || 0), 0);
+  lines.push(`Studied about ${Math.round(week / 60)} minutes in the last 7 days.`);
+  return lines.join('\n').slice(0, 2900);
+}

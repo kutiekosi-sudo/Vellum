@@ -67,12 +67,19 @@ const JSON_ONLY = 'Respond with ONLY the raw JSON requested. No markdown fences,
 
 const QUESTION_SHAPE = `[{"text":"question","options":["A","B","C","D"],"correct":0,"explanation":"why the answer is right","topic":"short topic name","skill":"recall"|"application"}]`;
 
-function chatContents(messages) {
+function chatContents(messages, image) {
   const list = (Array.isArray(messages) ? messages : []).slice(-14).map((m) => ({
     role: m?.role === 'assistant' ? 'model' : 'user',
     parts: [{ text: s(m?.content, 2500) }],
   })).filter((m) => m.parts[0].text.trim());
   if (!list.length || list[list.length - 1].role !== 'user') throw new HttpError(400, 'Say something to get started.', 'empty');
+  // An optional photo (a page of notes, a homework question) rides along with the newest message.
+  if (image) {
+    if (!/^image\/(png|jpe?g|webp)$/.test(String(image.mimeType)) || typeof image.data !== 'string' || image.data.length > 5.6 * 1024 * 1024) {
+      throw new HttpError(400, 'Please use a clear photo (PNG, JPG or WebP) under 4 MB.', 'bad_image');
+    }
+    list[list.length - 1].parts.push({ inline_data: { mime_type: image.mimeType, data: image.data } });
+  }
   return list;
 }
 
@@ -81,7 +88,7 @@ const MODES = {
     maxTokens: 2048,
     build: (p) => ({
       system: `${STUDENT_RULES}\n\nWhat Learnr knows about this student (from their own study data; use it gently, never recite it back as a list):\n${s(p.context, 3000) || 'Nothing yet.'}`,
-      contents: chatContents(p.messages),
+      contents: chatContents(p.messages, p.image),
     }),
   },
   teacher_coach: {
