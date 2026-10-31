@@ -4,6 +4,7 @@ import { useLive } from '../../lib/hooks.js';
 import { db } from '../../backend/index.js';
 import { ai } from '../../lib/api.js';
 import { fmtDate, fmtClock, plural } from '../../lib/util.js';
+import { runBatches, coverageCount } from '../../lib/batch.js';
 import { Badge, Button, Card, Empty, ErrorBlock, Notice, PageSkeleton, Progress, SelectField, TextArea, TextField, useConfirm } from '../../ui/kit.jsx';
 
 const shuffle = (a) => { const c = [...a]; for (let i = c.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [c[i], c[j]] = [c[j], c[i]]; } return c; };
@@ -20,7 +21,8 @@ function cleanQuestions(raw) {
 
 function Create({ onDone, onCancel }) {
   const { user, fail } = useApp();
-  const [f, setF] = useState({ title: '', subject: '', level: '', count: '8', notes: '' });
+  const [f, setF] = useState({ title: '', subject: '', level: '', count: '10', notes: '', all: true });
+  const [progress, setProgress] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
@@ -29,8 +31,14 @@ function Create({ onDone, onCancel }) {
     if (f.notes.trim().length < 80) { setErr('Paste a bit more of your notes (at least a few sentences) so the questions come from them.'); return; }
     setBusy(true);
     try {
-      const res = await ai('practice_quiz', { topic: f.title.trim() || 'My notes', subject: f.subject.trim(), level: f.level.trim(), count: Number(f.count), notes: f.notes });
-      const questions = cleanQuestions(res.data);
+      const total = f.all ? coverageCount(f.notes, 60) : Math.max(1, Math.min(60, Math.round(Number(f.count) || 10)));
+      const raw = await runBatches({
+        notes: f.notes, total, perCall: 10,
+        onProgress: (i, n) => setProgress(n > 1 ? `Making questions, part ${i} of ${n}...` : ''),
+        call: async (slice, count) => (await ai('practice_quiz', { topic: f.title.trim() || 'My notes', subject: f.subject.trim(), level: f.level.trim(), count, notes: slice })).data,
+      });
+      const seen = new Set();
+      const questions = cleanQuestions(raw).filter((q) => { const k = q.text.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
       if (!questions.length) { setErr('The AI did not return usable questions. Try again, or paste clearer notes.'); setBusy(false); return; }
       const id = await db.add(`users/${user.uid}/practice`, {
         title: f.title.trim() || 'My notes', subject: f.subject.trim(), level: f.level.trim(), questions, history: [], createdAt: Date.now(),
@@ -47,12 +55,12 @@ function Create({ onDone, onCancel }) {
         <TextField label="Subject (optional)" value={f.subject} onChange={set('subject')} maxLength={60} autoComplete="off" />
         <TextField label="Your level (optional)" value={f.level} onChange={set('level')} maxLength={40} placeholder="For example: SS2" autoComplete="off" />
       </div>
-      <SelectField label="How many questions" value={f.count} onChange={set('count')}>
-        {[5, 8, 10].map((n) => <option key={n} value={n}>{n}</option>)}
-      </SelectField>
-      <TextArea label="Your notes" rows={9} value={f.notes} onChange={set('notes')} maxLength={12000} hint="Up to about 12,000 characters." />
+      <label className="row" style={{ gap: 10 }}><input type="checkbox" checked={f.all} onChange={(e) => setF({ ...f, all: e.target.checked })} /> Cover everything in my notes ({f.notes.trim().length >= 80 ? `about ${coverageCount(f.notes, 60)} questions` : 'paste notes first'})</label>
+      {!f.all && <TextField label="How many questions (1 to 60)" type="number" inputMode="numeric" min="1" max="60" value={f.count} onChange={set('count')} />}
+      <TextArea label="Your notes" rows={9} value={f.notes} onChange={set('notes')} maxLength={15000} hint="Up to about 15,000 characters. Longer notes make more questions." />
       {err && <Notice tone="warn">{err}</Notice>}
-      <div className="row wrap"><Button loading={busy} onClick={make}>Make questions</Button><Button variant="ghost" onClick={onCancel}>Cancel</Button></div>
+      <div className="row wrap"><Button loading={busy} onClick={make}>Make questions</Button><Button variant="ghost" onClick={onCancel} disabled={busy}>Cancel</Button></div>
+      {busy && progress && <p className="muted small" role="status">{progress}</p>}
     </Card>
   );
 }

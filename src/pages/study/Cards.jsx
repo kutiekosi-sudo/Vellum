@@ -4,15 +4,19 @@ import { useLive } from '../../lib/hooks.js';
 import { db } from '../../backend/index.js';
 import { ai } from '../../lib/api.js';
 import { fmtDate, plural, shrinkImage } from '../../lib/util.js';
+import { runBatches, coverageCount } from '../../lib/batch.js';
 import { Badge, Button, Card, Empty, ErrorBlock, Notice, PageSkeleton, Progress, Seg, TextArea, TextField, useConfirm } from '../../ui/kit.jsx';
 
-const cleanCards = (raw) => (Array.isArray(raw) ? raw : []).map((c) => ({ front: String(c.front || '').trim().slice(0, 300), back: String(c.back || '').trim().slice(0, 600) })).filter((c) => c.front && c.back).slice(0, 60);
+const cleanCards = (raw) => (Array.isArray(raw) ? raw : []).map((c) => ({ front: String(c.front || '').trim().slice(0, 300), back: String(c.back || '').trim().slice(0, 600) })).filter((c) => c.front && c.back).slice(0, 120);
 
 function Create({ onDone, onCancel }) {
   const { user, fail } = useApp();
   const [src, setSrc] = useState('text');
   const [title, setTitle] = useState('');
   const [notes, setNotes] = useState('');
+  const [count, setCount] = useState('15');
+  const [all, setAll] = useState(true);
+  const [progress, setProgress] = useState('');
   const [file, setFile] = useState(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -24,12 +28,21 @@ function Create({ onDone, onCancel }) {
     setBusy(true);
     try {
       let res;
-      if (src === 'text') res = await ai('flashcards', { topic: title.trim() || 'My notes', notes, count: 12 });
-      else {
+      let cards;
+      if (src === 'text') {
+        const total = all ? coverageCount(notes, 100) : Math.max(1, Math.min(100, Math.round(Number(count) || 15)));
+        const raw = await runBatches({
+          notes, total, perCall: 20,
+          onProgress: (i, n) => setProgress(n > 1 ? `Making cards, part ${i} of ${n}...` : ''),
+          call: async (slice, c) => (await ai('flashcards', { topic: title.trim() || 'My notes', notes: slice, count: c })).data,
+        });
+        const seen = new Set();
+        cards = cleanCards(raw).filter((c) => { const k = c.front.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
+      } else {
         const img = await shrinkImage(file);
         res = await ai('photo_flashcards', { title: title.trim(), image: img });
+        cards = cleanCards(res.data);
       }
-      const cards = cleanCards(res.data);
       if (!cards.length) { setErr('No cards could be made from that. Try clearer notes or a sharper photo.'); setBusy(false); return; }
       const id = await db.add(`users/${user.uid}/flashcards`, { title: title.trim() || 'My notes', cards, source: src, createdAt: Date.now() });
       onDone(id);
@@ -40,14 +53,21 @@ function Create({ onDone, onCancel }) {
       <h3>New flashcards</h3>
       <Seg label="Source" value={src} onChange={setSrc} options={[{ value: 'text', label: 'Paste notes' }, { value: 'photo', label: 'Photo of notes' }]} />
       <TextField label="Title" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={80} placeholder="For example: Cell structure" autoComplete="off" />
-      {src === 'text' ? <TextArea label="Your notes" rows={8} value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={4000} hint="Up to about 4,000 characters." /> : (
+      {src === 'text' ? (
+        <>
+          <label className="row" style={{ gap: 10 }}><input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} /> Cover everything in my notes ({notes.trim().length >= 40 ? `about ${coverageCount(notes, 100)} cards` : 'paste notes first'})</label>
+          {!all && <TextField label="How many cards (1 to 100)" type="number" inputMode="numeric" min="1" max="100" value={count} onChange={(e) => setCount(e.target.value)} />}
+          <TextArea label="Your notes" rows={8} value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={25000} hint="Up to about 25,000 characters. Longer notes make more cards." />
+        </>
+      ) : (
         <div className="stack sm">
           <input ref={input} type="file" accept="image/png,image/jpeg,image/webp" capture="environment" hidden onChange={(e) => setFile(e.target.files[0] || null)} />
           <div className="row wrap"><Button variant="ghost" icon="camera" onClick={() => input.current && input.current.click()}>{file ? 'Choose another photo' : 'Take or choose a photo'}</Button>{file && <span className="muted small break">{file.name}</span>}</div>
         </div>
       )}
       {err && <Notice tone="warn">{err}</Notice>}
-      <div className="row wrap"><Button loading={busy} onClick={make}>Make flashcards</Button><Button variant="ghost" onClick={onCancel}>Cancel</Button></div>
+      <div className="row wrap"><Button loading={busy} onClick={make}>Make flashcards</Button><Button variant="ghost" onClick={onCancel} disabled={busy}>Cancel</Button></div>
+      {busy && progress && <p className="muted small" role="status">{progress}</p>}
     </Card>
   );
 }

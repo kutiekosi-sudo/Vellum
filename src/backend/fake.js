@@ -345,8 +345,10 @@ function fakeAi(p) {
     case 'student_coach': return { text: `Here is a simple way to think about it: start with the definition, then try one example.${ctxEcho}` };
     case 'teacher_coach': return { text: 'Try three steps: a household example, a quick demonstration, then two discussion questions.' };
     case 'explain_mistake': return { data: { type: 'careless_slip', title: 'A quick slip', explanation: 'You knew the idea but picked the wrong option.', fix: 'Re-read each option before choosing.', example: '' } };
-    case 'flashcards': case 'photo_flashcards': return { data: [{ front: 'Term A', back: 'Meaning A' }, { front: 'Term B', back: 'Meaning B' }] };
-    case 'practice_quiz': return { data: sampleQuestions(p.topic, Math.min(5, p.count || 5)) };
+    case 'photo_flashcards': return { data: [{ front: 'Term A', back: 'Meaning A' }, { front: 'Term B', back: 'Meaning B' }] };
+    case 'flashcards': return { data: Array.from({ length: p.count || 2 }, (_, i) => ({ front: `Term ${p.notes ? p.notes.length : 0}-${i}-${Math.random().toString(36).slice(2, 6)}`, back: `Meaning ${i}` })) };
+    case 'practice_quiz': return { data: sampleQuestions(`${p.topic} ${Math.random().toString(36).slice(2, 6)}`, Math.min(15, p.count || 5)) };
+    case 'teach_back': return { data: { accuracy: String(p.explanation || '').length > 60 ? 80 : 30, covered: ['the main idea'], missing: ['an example'], misconception: String(p.explanation || '').includes('wrongly') ? 'Plants eat soil to grow.' : '', feedback: 'Good start. Add one concrete example next time.' } };
     case 'study_plan': return { data: { summary: 'Short sessions on your weakest topic first.', days: [{ day: 'Mon', focus: 'Maths: fractions', minutes: 25, tasks: ['Review notes', 'Do 5 questions'] }, { day: 'Tue', focus: 'Rest', minutes: 0, tasks: ['Take a break'] }] } };
     case 'break_down': return { data: { steps: [{ title: 'Read the instructions', minutes: 10, tip: 'Underline the verbs.' }, { title: 'Plan your answer', minutes: 15, tip: 'Write three bullet points.' }] } };
     case 'teacher_generate':

@@ -100,11 +100,11 @@ const MODES = {
     }),
   },
   flashcards: {
-    json: true, maxTokens: 3000,
+    json: true, maxTokens: 5000,
     build: (p) => ({
       system: JSON_ONLY,
       contents: [{ role: 'user', parts: [{ text:
-        `Create exactly ${n(p.count, 3, 20, 8)} study flashcards for the topic "${s(p.topic, 120)}" in ${s(p.subject, 80) || 'the subject'}, for a student at this level: ${s(p.level, 80) || 'secondary school'}.${p.notes ? `\nBase them on these notes:\n${s(p.notes, 4000)}` : ''}\nReturn: [{"front":"question or term","back":"concise answer, 1-2 sentences"}]` }] }],
+        `Create exactly ${n(p.count, 1, 25, 8)} study flashcards for the topic "${s(p.topic, 120)}" in ${s(p.subject, 80) || 'the subject'}, for a student at this level: ${s(p.level, 80) || 'secondary school'}.${p.notes ? `\nBase them on these notes, covering nearly every distinct idea in them and never repeating a card:\n${s(p.notes, 6000)}` : ''}\nReturn: [{"front":"question or term","back":"concise answer, 1-2 sentences"}]` }] }],
     }),
   },
   photo_flashcards: {
@@ -124,11 +124,19 @@ const MODES = {
     },
   },
   practice_quiz: {
-    json: true, maxTokens: 4000,
+    json: true, maxTokens: 6000,
     build: (p) => ({
       system: JSON_ONLY,
       contents: [{ role: 'user', parts: [{ text:
-        `Write ${n(p.count, 3, 10, 5)} multiple-choice practice questions on "${s(p.topic, 120)}" (${s(p.subject, 80) || 'general'}) for a student at this level: ${s(p.level, 80) || 'secondary school'}. Each has 4 options, exactly one correct. Mix recall and application.${p.notes ? `\nBase every question ONLY on these notes the student supplied; do not test anything they do not cover:\n${s(p.notes, 12000)}` : ''}\nReturn: [{"text":"question","options":["A","B","C","D"],"correct":0,"explanation":"short explanation","topic":"${s(p.topic, 80)}"}]` }] }],
+        `Write exactly ${n(p.count, 1, 15, 5)} multiple-choice practice questions on "${s(p.topic, 120)}" (${s(p.subject, 80) || 'general'}) for a student at this level: ${s(p.level, 80) || 'secondary school'}. Each has 4 options, exactly one correct. Mix recall and application.${p.notes ? `\nBase every question ONLY on these notes the student supplied; do not test anything they do not cover. Spread the questions across the WHOLE text so that nearly every distinct fact, definition, step and example is tested once, and do not repeat a question:\n${s(p.notes, 6000)}` : ''}\nReturn: [{"text":"question","options":["A","B","C","D"],"correct":0,"explanation":"short explanation","topic":"${s(p.topic, 80)}"}]` }] }],
+    }),
+  },
+  teach_back: {
+    json: true, maxTokens: 1500,
+    build: (p) => ({
+      system: `${STUDENT_RULES}\n${JSON_ONLY}`,
+      contents: [{ role: 'user', parts: [{ text:
+        `A student tried to explain a topic in their own words (a "teach it back" check). Judge how accurate and complete the explanation is. Be kind but honest; do not give marks for vague or copied-sounding text.\nSubject: ${s(p.subject, 80)}\nTopic: ${s(p.topic, 120)}${p.notes ? `\nReference notes the student studied from:\n${s(p.notes, 4000)}` : ''}\n\nStudent's explanation:\n${s(p.explanation, 3000)}\n\nReturn: {"accuracy":0-100,"covered":["ideas they explained correctly"],"missing":["important ideas they left out"],"misconception":"a specific wrong belief they showed, or empty string","feedback":"2-3 encouraging sentences with the single most useful next step"}` }] }],
     }),
   },
   study_plan: {
