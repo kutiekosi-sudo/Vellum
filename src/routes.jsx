@@ -5,6 +5,7 @@ import { PageHead } from './ui/kit.jsx';
 import Profile from './pages/Profile.jsx';
 import Classes from './pages/Classes.jsx';
 import ClassPage from './pages/ClassPage.jsx';
+import Home from './pages/Home.jsx';
 import StudyShell from './pages/study/StudyShell.jsx';
 
 function Soon({ title, art = 'desk' }) {
@@ -23,7 +24,7 @@ const SHARED = {
   '/search': { title: 'Search', Page: soon('Search', 'search') },
 };
 const STUDENT = {
-  '/': { title: 'Home', Page: soon('Home', 'desk') },
+  '/': { title: 'Home', Page: Home },
   '/classes': { title: 'Classes', Page: Classes },
   '/study': { title: 'Study', Page: StudyShell },
   '/study/practice': { title: 'Study', Page: StudyShell },
@@ -33,7 +34,7 @@ const STUDENT = {
   ...SHARED,
 };
 const TEACHER = {
-  '/': { title: 'Home', Page: soon('Home', 'classroom') },
+  '/': { title: 'Home', Page: Home },
   '/classes': { title: 'Classes', Page: Classes },
   '/coach': { title: 'Coach', Page: soon('Coach', 'coach') },
   ...SHARED,
