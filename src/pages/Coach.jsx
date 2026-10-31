@@ -5,6 +5,7 @@ import { db } from '../backend/index.js';
 import { ai } from '../lib/api.js';
 import { shrinkImage, plural, fmtDate } from '../lib/util.js';
 import { studentContext, computeRetention } from '../lib/knowledge.js';
+import { logDecision } from '../lib/ledger.js';
 import { Button, Card, Empty, Notice, PageHead, PageSkeleton, Seg, TextArea, TextField, useConfirm } from '../ui/kit.jsx';
 import { Icon } from '../ui/icons.jsx';
 
@@ -105,6 +106,7 @@ function Plan({ context, topics }) {
       };
       if (!clean.days.length) throw new Error('The AI did not return a plan. Please try again.');
       await db.set(`users/${user.uid}/goals/plan`, { plan: clean, madeAt: Date.now() });
+      logDecision(user.uid, { type: 'plan', title: `${clean.days.length}-day study plan`, reasoning: clean.summary });
     } catch (e) { fail(e); } finally { setBusy(false); }
   };
   if (doc.loading) return <PageSkeleton rows={2} />;

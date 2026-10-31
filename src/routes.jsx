@@ -5,6 +5,7 @@ import { PageHead } from './ui/kit.jsx';
 import Profile from './pages/Profile.jsx';
 import Classes from './pages/Classes.jsx';
 import ClassPage from './pages/ClassPage.jsx';
+import Pod from './pages/Pod.jsx';
 import Coach from './pages/Coach.jsx';
 import Home from './pages/Home.jsx';
 import StudyShell from './pages/study/StudyShell.jsx';
@@ -33,7 +34,7 @@ const STUDENT = {
   '/study/practice': { title: 'Study', Page: StudyShell },
   '/study/cards': { title: 'Study', Page: StudyShell },
   '/coach': { title: 'Coach', Page: Coach },
-  '/pod': { title: 'Study Pod', Page: soon('Study Pod', 'pod') },
+  '/pod': { title: 'Study Pod', Page: Pod },
   ...SHARED,
 };
 const TEACHER = {

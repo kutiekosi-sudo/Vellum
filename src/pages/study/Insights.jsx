@@ -7,6 +7,7 @@ import { computeRetention, computeReadiness, recommendedAction, whatIf, optimize
 import { fmtDate, plural } from '../../lib/util.js';
 import { Badge, Button, Card, Empty, Notice, PageSkeleton, Progress, SectionTitle, TextField } from '../../ui/kit.jsx';
 import { href } from '../../lib/router.js';
+import { logDecision } from '../../lib/ledger.js';
 
 export default function Insights() {
   const { user, fail } = useApp();
@@ -32,6 +33,8 @@ export default function Insights() {
     const today = new Date().toDateString();
     const rest = history.filter((h) => new Date(h.at).toDateString() !== today);
     db.set(`users/${user.uid}/goals/readiness`, { history: [...rest, { at: Date.now(), score: ready.score }].slice(-60) }).catch(() => {});
+    const rec = recommendedAction(topics, depMap);
+    if (rec) db.get(`users/${user.uid}/goals/ledger`).then((l) => { if (!l || l.lastNext !== rec.topic.name) logDecision(user.uid, { type: 'next', title: `Next step: ${rec.topic.name}`, reasoning: rec.reason, next: rec.topic.name }); }).catch(() => {});
   });
 
   if (topicsQ.loading || sessionsQ.loading) return <PageSkeleton rows={3} />;
@@ -105,7 +108,7 @@ export default function Insights() {
       <SectionTitle title="Short on time?" />
       <Card className="stack sm">
         <TextField label="Minutes you have tonight (10 to 240)" type="number" inputMode="numeric" min="10" max="240" value={minutes} onChange={(e) => setMinutes(e.target.value)} />
-        <div><Button disabled={!(minN >= 10 && minN <= 240)} onClick={() => setPlan(optimizer(topics, depMap, minN))}>Plan my time</Button></div>
+        <div><Button disabled={!(minN >= 10 && minN <= 240)} onClick={() => { const pl = optimizer(topics, depMap, minN); setPlan(pl); logDecision(user.uid, { type: 'time', title: `${pl.minutes} minutes: ${pl.blocks.map((b) => `${b.topic} ${b.minutes}`).join(', ')}`, reasoning: pl.explanation }); }}>Plan my time</Button></div>
         {plan && (
           <div className="stack sm">
             {plan.blocks.map((b) => <div key={b.topic} className="row between"><span className="break">{b.topic}</span><Badge>{b.minutes} min</Badge></div>)}
