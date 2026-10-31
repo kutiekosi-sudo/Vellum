@@ -11,7 +11,7 @@ rules_version = '2';
 //   classes/{classId}                        a classroom (owned by one teacher)
 //   classCodes/{CODE}                        join code -> class (get only, never listable)
 //   classes/{classId}/members/{uid}          class roster (teacher-readable; each student reads only their own)
-//   classes/{classId}/announcements|assignments|resources|cbts/...
+//   classes/{classId}/announcements|assignments|resources|cbts|room|presence/...
 //   classes/{classId}/assignments/{a}/submissions/{uid}
 //   classes/{classId}/cbts/{id}/theory/{sid} revision material for a CBT
 //   pods/{podId}, podCodes/{CODE}            Study Pod
@@ -160,6 +160,27 @@ service cloud.firestore {
                 && request.resource.data.submittedAt == request.time);
           allow delete: if false;
         }
+      }
+
+      // Study room: classmates see who is studying and can chat. The teacher can see, delete, and switch the room off.
+      match /room/{m} {
+        allow read: if inClass(c);
+        allow create: if (isActiveMember(c) || isClassTeacher(c))
+          && (isClassTeacher(c) || get(classPath(c)).data.get('roomOpen', true) == true)
+          && request.resource.data.keys().hasOnly(['uid', 'name', 'text', 'createdAt'])
+          && request.resource.data.uid == me()
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 300
+          && request.resource.data.createdAt is number;
+        allow update: if false;
+        allow delete: if isClassTeacher(c) || (signedIn() && resource.data.uid == me());
+      }
+      match /presence/{u} {
+        allow read: if inClass(c);
+        allow create, update: if isActiveMember(c) && u == me()
+          && request.resource.data.keys().hasOnly(['uid', 'name', 'topic', 'startedAt', 'endsAt'])
+          && request.resource.data.uid == me();
+        allow delete: if signedIn() && (u == me() || isClassTeacher(c));
       }
 
       match /cbts/{t} {

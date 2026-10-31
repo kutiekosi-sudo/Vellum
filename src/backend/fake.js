@@ -52,7 +52,7 @@ function checkRead(kind, path, opts, data) {
       if (kind === 'list') { if (!isTeacherOf(c)) throw denied(); } else if (!(s[3] === U() || isTeacherOf(c))) throw denied();
       return;
     }
-    if (sub === 'announcements') { if (!(isTeacherOf(c) || isActive(c))) throw denied(); return; }
+    if (sub === 'announcements' || sub === 'room' || sub === 'presence') { if (!(isTeacherOf(c) || isActive(c))) throw denied(); return; }
     const published = () => {
       if (isTeacherOf(c)) return;
       if (!isActive(c)) throw denied();
@@ -134,6 +134,21 @@ function checkWrite(op, path, data, existing) {
       if (m === U() && op === 'update' && changed(existing, data).every((k) => ['displayName', 'photoURL', 'activity'].includes(k))) return;
       throw denied();
     }
+    if (sub === 'room') {
+      if (op === 'create') {
+        const open = (cls(c) || {}).roomOpen !== false;
+        if (!((isTeacherOf(c) || (isActive(c) && open)) && data.uid === U() && typeof data.text === 'string' && data.text.length > 0 && data.text.length <= 300 && typeof data.createdAt === 'number'
+          && Object.keys(data).every((k) => ['uid', 'name', 'text', 'createdAt'].includes(k)))) throw denied();
+        return;
+      }
+      if (op === 'delete' && (isTeacherOf(c) || (existing && existing.uid === U()))) return;
+      throw denied();
+    }
+    if (sub === 'presence') {
+      if (op === 'delete') { if (s[3] === U() || isTeacherOf(c)) return; throw denied(); }
+      if (!(isActive(c) && s[3] === U() && data.uid === U() && Object.keys(data).every((k) => ['uid', 'name', 'topic', 'startedAt', 'endsAt'].includes(k)))) throw denied();
+      return;
+    }
     if (['announcements', 'resources', 'assignments', 'cbts'].includes(sub) && s.length <= 4) { if (!isTeacherOf(c)) throw denied(); return; }
     if (sub === 'cbts' && s[4] === 'theory') { if (!isTeacherOf(c)) throw denied(); return; }
     if (sub === 'assignments' && s[4] === 'submissions') {
@@ -196,7 +211,12 @@ function listDocs(collPath, opts) {
       if (((opts && opts.where) || []).every((w) => matchWhere(d, w))) out.push({ id: p.split('/').pop(), ...clone(d) });
     }
   }
-  return out.sort((a, b) => (a.id < b.id ? -1 : 1));
+  out.sort((a, b) => (a.id < b.id ? -1 : 1));
+  if (opts && opts.orderBy) {
+    const [f, dir] = opts.orderBy;
+    out.sort((a, b) => (a[f] === b[f] ? 0 : a[f] < b[f] ? -1 : 1) * (dir === 'desc' ? -1 : 1));
+  }
+  return opts && opts.limit ? out.slice(0, opts.limit) : out;
 }
 const getDoc = (p) => (mem.has(p) ? { id: p.split('/').pop(), ...clone(mem.get(p)) } : null);
 

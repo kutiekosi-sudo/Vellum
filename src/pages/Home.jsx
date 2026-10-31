@@ -3,6 +3,7 @@ import { useLive, useAsync } from '../lib/hooks.js';
 import { db } from '../backend/index.js';
 import { href } from '../lib/router.js';
 import { summarize } from '../lib/study.js';
+import { cbt } from '../lib/api.js';
 import { dueLabel, firstName, plural } from '../lib/util.js';
 import { Badge, Button, Card, Empty, PageHead, Progress, SectionTitle, Skeleton, TeacherQuote } from '../ui/kit.jsx';
 import { Icon } from '../ui/icons.jsx';
@@ -115,6 +116,22 @@ function TeacherHome() {
     return Object.fromEntries(out.map((x) => [x.id, x]));
   }, [key]);
   const totalToGrade = Object.values(stats.data || {}).reduce((n, x) => n + x.toGrade, 0);
+  // Concept alerts: topics where many students in a class got CBT questions wrong. Uses class test results only.
+  const alerts = useAsync(async () => {
+    const out = [];
+    await Promise.all(classes.slice(0, 8).map(async (c) => {
+      const tests = (await db.list(`classes/${c.id}/cbts`, { where: [['published', '==', true]] }).catch(() => [])).sort((a, b) => (b.publishedAt || b.createdAt || 0) - (a.publishedAt || a.createdAt || 0)).slice(0, 4);
+      const agg = {};
+      await Promise.all(tests.map(async (t) => {
+        const r = await cbt('classResults', { classId: c.id, cbtId: t.id }).catch(() => null);
+        for (const ts of (r && r.topicStats) || []) { const a = agg[ts.topic] || (agg[ts.topic] = { correct: 0, total: 0 }); a.total += ts.total; a.correct += Math.round(((ts.correctPct || 0) / 100) * ts.total); }
+      }));
+      for (const [topic, a] of Object.entries(agg)) {
+        if (a.total >= 6 && a.correct / a.total < 0.5) out.push({ classId: c.id, className: c.name, topic, wrongPct: Math.round((1 - a.correct / a.total) * 100), answers: a.total });
+      }
+    }));
+    return out.sort((a, b) => b.wrongPct - a.wrongPct).slice(0, 6);
+  }, [key]);
 
   return (
     <div className="stack lg">
@@ -124,6 +141,17 @@ function TeacherHome() {
         <Empty art="classroom" title="No classes yet" text="Create your first class and share its code with your students."><a className="btn" href={href('/classes')}>Go to classes</a></Empty>
       ) : (
         <>
+          {alerts.data && alerts.data.length > 0 && (
+            <Card className="stack sm">
+              <strong>Concept alerts</strong>
+              <span className="muted small">Topics where more than half of the answers in recent CBTs were wrong. Worth re-teaching or revisiting.</span>
+              {alerts.data.map((a) => (
+                <a key={a.classId + a.topic} className="row between" style={{ textDecoration: 'none', color: 'inherit' }} href={href(`/class/${a.classId}/cbts`)}>
+                  <span className="break"><strong>{a.topic}</strong>, {a.className}</span><Badge tone="warn">{a.wrongPct}% wrong</Badge>
+                </a>
+              ))}
+            </Card>
+          )}
           {totalToGrade > 0 && <Card accent><strong>{plural(totalToGrade, 'piece')} of work waiting to be graded.</strong></Card>}
           <div className="grid cols-3">
             {classes.map((c) => {

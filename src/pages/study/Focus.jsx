@@ -3,7 +3,7 @@ import { useApp } from '../../lib/store.jsx';
 import { useLive, useNow } from '../../lib/hooks.js';
 import { db } from '../../backend/index.js';
 import { PHASES, summarize, beep, minutesOf } from '../../lib/study.js';
-import { fmtClock, fmtDateTime, plural } from '../../lib/util.js';
+import { fmtClock, fmtDateTime, plural, shortName } from '../../lib/util.js';
 import { Badge, Button, Card, Empty, Progress, SectionTitle, SelectField, Seg, TextField } from '../../ui/kit.jsx';
 
 const KEY = 'learnr.timer.v1';
@@ -14,7 +14,7 @@ const SETTINGS_KEY = 'learnr.timer.settings';
 const loadSettings = () => { try { return { focus: 25, short: 5, long: 15, ...(JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}) }; } catch { return { focus: 25, short: 5, long: 15 }; } };
 
 export default function Focus() {
-  const { user, toast, fail } = useApp();
+  const { user, profile, toast, fail } = useApp();
   const sessions = useLive(`users/${user.uid}/studySessions`);
   const memberships = useLive(`users/${user.uid}/memberships`);
   const goalDoc = useLive(`users/${user.uid}/goals/daily`);
@@ -25,7 +25,17 @@ export default function Focus() {
   const [mode, setMode] = useState(() => (read() || {}).mode || 'solo');
   const [classId, setClassId] = useState(() => (read() || {}).classId || '');
   const [topic, setTopic] = useState(() => (read() || {}).topic || '');
+  const [share, setShare] = useState(() => { try { return localStorage.getItem('learnr.share') === '1'; } catch { return false; } });
   const finishing = useRef(false);
+  // Classmates only see you in the class study room if you choose to be seen (class mode + the box ticked).
+  const presenceOn = (t) => {
+    if (!(share && (t.mode || mode) === 'class' && (t.classId || classId))) return;
+    db.set(`classes/${t.classId || classId}/presence/${user.uid}`, { uid: user.uid, name: shortName(profile.displayName), topic: (t.topic || topic || '').slice(0, 60), startedAt: t.startedAt, endsAt: t.endsAt }).catch(() => {});
+  };
+  const presenceOff = (t) => {
+    const c = t.classId || classId;
+    if (c) db.del(`classes/${c}/presence/${user.uid}`).catch(() => {});
+  };
 
   const setTimer = (t) => { setTimerState(t); write(t); };
   const classes = memberships.data || [];
@@ -57,6 +67,7 @@ export default function Focus() {
     finishing.current = true;
     (async () => {
       if (timer.phase === 'focus') await saveSession(totalMs / 1000, timer.startedAt, true); // planned length, so time spent paused is not counted
+      presenceOff(timer);
       beep();
       const cycles = timer.phase === 'focus' ? (timer.cycles || 0) + 1 : timer.cycles || 0;
       const next = timer.phase === 'focus' ? (cycles % 4 === 0 ? 'long' : 'short') : 'focus';
@@ -74,13 +85,16 @@ export default function Focus() {
   const start = () => {
     if (mode === 'class' && !classId) { toast('Pick which class you are studying for.', 'error'); return; }
     const t = Date.now();
-    setTimer({
+    const nt = {
       ...timer, status: 'running', startedAt: timer.status === 'paused' ? timer.startedAt : t, endsAt: t + leftMs,
       mode, classId: mode === 'class' ? classId : '', className: cls ? cls.className : '', topic: topic.trim(),
-    });
+    };
+    setTimer(nt);
+    if (timer.phase === 'focus') presenceOn(nt);
   };
-  const pause = () => setTimer({ ...timer, status: 'paused', remainingMs: Math.max(0, timer.endsAt - Date.now()) });
+  const pause = () => { presenceOff(timer); setTimer({ ...timer, status: 'paused', remainingMs: Math.max(0, timer.endsAt - Date.now()) }); };
   const stop = async () => {
+    presenceOff(timer);
     // Stop early: keep the time actually studied.
     if (timer.phase === 'focus' && timer.status !== 'idle') {
       const elapsed = (totalMs - leftMs) / 1000;
@@ -127,6 +141,9 @@ export default function Focus() {
             {classes.map((c) => <option key={c.classId || c.id} value={c.classId || c.id}>{c.className}</option>)}
           </SelectField>
         ) : <p className="muted">You have not joined a class yet. You can still study on your own.</p>)}
+        {mode === 'class' && classes.length > 0 && (
+          <label className="row" style={{ gap: 10 }}><input type="checkbox" checked={share} disabled={!idle} onChange={(e) => { setShare(e.target.checked); try { localStorage.setItem('learnr.share', e.target.checked ? '1' : '0'); } catch { /* optional */ } }} /> Show me in the class study room while I focus (your first name and last initial)</label>
+        )}
         <TextField label="Topic (optional)" value={topic} onChange={(e) => setTopic(e.target.value)} maxLength={80} disabled={!idle} placeholder="For example: photosynthesis" autoComplete="off" />
         {!idle || <details>
           <summary className="muted">Timer lengths</summary>
