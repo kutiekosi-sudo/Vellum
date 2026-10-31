@@ -5,6 +5,7 @@ import { PageHead } from './ui/kit.jsx';
 import Profile from './pages/Profile.jsx';
 import Classes from './pages/Classes.jsx';
 import ClassPage from './pages/ClassPage.jsx';
+import Study from './pages/Study.jsx';
 
 function Soon({ title, art = 'desk' }) {
   return (
@@ -24,7 +25,7 @@ const SHARED = {
 const STUDENT = {
   '/': { title: 'Home', Page: soon('Home', 'desk') },
   '/classes': { title: 'Classes', Page: Classes },
-  '/study': { title: 'Study', Page: soon('Study', 'focus') },
+  '/study': { title: 'Study', Page: Study },
   '/coach': { title: 'Coach', Page: soon('Coach', 'coach') },
   '/pod': { title: 'Study Pod', Page: soon('Study Pod', 'pod') },
   ...SHARED,
