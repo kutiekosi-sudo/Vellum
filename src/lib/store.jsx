@@ -56,13 +56,19 @@ export function AppProvider({ children }) {
     setStatus('ready');
   }, [user]);
 
+  const patchProfile = useCallback(async (patch) => {
+    if (!user) return;
+    await db.update('users/' + user.uid, patch);
+    setProfile((p) => ({ ...p, ...patch }));
+  }, [user]);
+
   const value = useMemo(() => ({
     status, user, profile, role: profile && profile.role, loadError, online,
-    toast, fail, chooseRole,
+    toast, fail, chooseRole, patchProfile,
     retry: () => user && loadProfile(user),
     signOut: () => auth.signOut(),
     toasts, dismissToast: (id) => setToasts((t) => t.filter((x) => x.id !== id)),
-  }), [status, user, profile, loadError, online, toast, fail, chooseRole, loadProfile, toasts]);
+  }), [status, user, profile, loadError, online, toast, fail, chooseRole, patchProfile, loadProfile, toasts]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

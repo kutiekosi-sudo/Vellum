@@ -3,7 +3,8 @@ import { useApp } from '../../lib/store.jsx';
 import { useLive, useNow } from '../../lib/hooks.js';
 import { db } from '../../backend/index.js';
 import { PHASES, summarize, beep, minutesOf } from '../../lib/study.js';
-import { fmtClock, fmtDateTime, plural, shortName } from '../../lib/util.js';
+import { fmtClock, fmtDateTime, fmtMinutes, plural, shortName } from '../../lib/util.js';
+import { pushState } from '../../lib/pods.js';
 import { Badge, Button, Card, Empty, Progress, SectionTitle, SelectField, Seg, TextField } from '../../ui/kit.jsx';
 
 const KEY = 'learnr.timer.v1';
@@ -32,6 +33,10 @@ export default function Focus() {
     if (!(share && (t.mode || mode) === 'class' && (t.classId || classId))) return;
     db.set(`classes/${t.classId || classId}/presence/${user.uid}`, { uid: user.uid, name: shortName(profile.displayName), topic: (t.topic || topic || '').slice(0, 60), startedAt: t.startedAt, endsAt: t.endsAt }).catch(() => {});
   };
+  // Pod members see whether I am studying, on a break, or finished. Only a state and today's minutes are shared.
+  const pods = useLive(`users/${user.uid}/podMemberships`);
+  const podIds = (pods.data || []).map((p) => p.podId);
+  const tell = (state, endsAt, todayMin) => { if (podIds.length) pushState(user, podIds, { state, stateSince: Date.now(), stateEndsAt: endsAt || 0, todayMin: todayMin ?? sum.today, todayDay: new Date().toDateString() }); };
   const presenceOff = (t) => {
     const c = t.classId || classId;
     if (c) db.del(`classes/${c}/presence/${user.uid}`).catch(() => {});
@@ -68,6 +73,7 @@ export default function Focus() {
     (async () => {
       if (timer.phase === 'focus') await saveSession(totalMs / 1000, timer.startedAt, true); // planned length, so time spent paused is not counted
       presenceOff(timer);
+      tell(timer.phase === 'focus' ? 'break' : 'idle', 0, sum.today + (timer.phase === 'focus' ? Math.round(totalMs / 60000) : 0));
       beep();
       const cycles = timer.phase === 'focus' ? (timer.cycles || 0) + 1 : timer.cycles || 0;
       const next = timer.phase === 'focus' ? (cycles % 4 === 0 ? 'long' : 'short') : 'focus';
@@ -91,10 +97,12 @@ export default function Focus() {
     };
     setTimer(nt);
     if (timer.phase === 'focus') presenceOn(nt);
+    tell(timer.phase === 'focus' ? 'studying' : 'break', nt.endsAt);
   };
-  const pause = () => { presenceOff(timer); setTimer({ ...timer, status: 'paused', remainingMs: Math.max(0, timer.endsAt - Date.now()) }); };
+  const pause = () => { presenceOff(timer); tell('break', 0, sum.today + Math.round((totalMs - Math.max(0, timer.endsAt - Date.now())) / 60000)); setTimer({ ...timer, status: 'paused', remainingMs: Math.max(0, timer.endsAt - Date.now()) }); };
   const stop = async () => {
     presenceOff(timer);
+    tell('idle', 0, sum.today + (timer.phase === 'focus' && timer.status !== 'idle' ? Math.round((totalMs - leftMs) / 60000) : 0));
     // Stop early: keep the time actually studied.
     if (timer.phase === 'focus' && timer.status !== 'idle') {
       const elapsed = (totalMs - leftMs) / 1000;
@@ -158,7 +166,7 @@ export default function Focus() {
       <div className="grid cols-2">
         <Card className="stack sm">
           <div className="muted small">Today</div>
-          <strong style={{ fontSize: 30 }}>{sum.today} min</strong>
+          <strong style={{ fontSize: 30 }}>{fmtMinutes(sum.today)}</strong>
           <Progress value={(sum.today / goal) * 100} label="Daily goal" />
           <TextField label="Daily goal (minutes)" type="number" inputMode="numeric" min="10" max="600" defaultValue={goal} key={goal} onBlur={setGoal} />
         </Card>
@@ -166,7 +174,7 @@ export default function Focus() {
           <div className="muted small">Streak</div>
           <strong style={{ fontSize: 30 }}>{plural(sum.streak, 'day')}</strong>
           <span className="muted small">{sum.streak ? 'Study a little each day to keep it going.' : 'Study today to start a streak.'}</span>
-          <span className="muted small">This week: {sum.weekTotal} min</span>
+          <span className="muted small">This week: {fmtMinutes(sum.weekTotal)}</span>
         </Card>
       </div>
 
@@ -193,7 +201,7 @@ export default function Focus() {
                 <strong className="break">{s.topic || (s.mode === 'class' ? s.className : 'Studying on my own')}</strong>
                 <span className="muted small" style={{ display: 'block' }}>{fmtDateTime(s.startedAt)}{s.mode === 'class' && s.className ? `, ${s.className}` : ''}</span>
               </span>
-              <Badge tone={s.completed ? 'ok' : ''}>{minutesOf(s)} min{s.completed ? '' : ', stopped early'}</Badge>
+              <Badge tone={s.completed ? 'ok' : ''}>{fmtMinutes(minutesOf(s))}{s.completed ? '' : ', stopped early'}</Badge>
             </div>
           ))}
         </Card>

@@ -69,6 +69,13 @@ export function dueLabel(dueAt, now = Date.now()) {
   return `Due ${fmtDate(dueAt)}`;
 }
 
+// Minutes as a friendly amount: 45 min, 2 h, 2 h 15 min.
+export function fmtMinutes(min) {
+  min = Math.max(0, Math.round(min || 0));
+  const h = Math.floor(min / 60); const m = min % 60;
+  return h ? (m ? `${h} h ${m} min` : `${h} h`) : `${m} min`;
+}
+
 export function fmtDuration(sec, short = false) {
   sec = Math.max(0, Math.round(sec));
   const h = Math.floor(sec / 3600);

@@ -228,9 +228,34 @@ service cloud.firestore {
       match /members/{m} {
         allow read: if isPodMember(p) || isPodOwner(p);
         allow create: if signedIn() && m == me()
-          && (isPodOwner(p) || validPodCode(request.resource.data.code, p));
+          && (isPodOwner(p) || (validPodCode(request.resource.data.code, p)
+              // joining needs the pod's name as well as its code
+              && request.resource.data.get('nameKey', '') == get(/databases/$(database)/documents/podCodes/$(request.resource.data.code)).data.get('nameKey', '')));
         allow update: if signedIn() && m == me();
         allow delete: if signedIn() && (m == me() || isPodOwner(p));
+      }
+
+      // Pod chat and shared notes: only people inside the pod can read or add.
+      match /messages/{x} {
+        allow read: if isPodMember(p) || isPodOwner(p);
+        allow create: if isPodMember(p)
+          && request.resource.data.keys().hasOnly(['uid', 'name', 'text', 'createdAt'])
+          && request.resource.data.uid == me()
+          && request.resource.data.text is string && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 400
+          && request.resource.data.createdAt is number;
+        allow update: if false;
+        allow delete: if signedIn() && (resource.data.uid == me() || isPodOwner(p));
+      }
+      match /notes/{x} {
+        allow read: if isPodMember(p) || isPodOwner(p);
+        allow create: if isPodMember(p)
+          && request.resource.data.keys().hasOnly(['uid', 'name', 'title', 'body', 'createdAt'])
+          && request.resource.data.uid == me()
+          && request.resource.data.title is string && request.resource.data.title.size() > 0 && request.resource.data.title.size() <= 100
+          && request.resource.data.body is string && request.resource.data.body.size() > 0 && request.resource.data.body.size() <= 6000
+          && request.resource.data.createdAt is number;
+        allow update: if false;
+        allow delete: if signedIn() && (resource.data.uid == me() || isPodOwner(p));
       }
     }
 

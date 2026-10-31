@@ -75,7 +75,7 @@ function checkRead(kind, path, opts, data) {
       if (!pod || !(pod.ownerUid === U() || podMember(p, U()))) throw denied();
       return;
     }
-    if (s[2] === 'members') { if (!(podMember(p, U()) || (pod && pod.ownerUid === U()))) throw denied(); return; }
+    if (s[2] === 'members' || s[2] === 'messages' || s[2] === 'notes') { if (!(podMember(p, U()) || (pod && pod.ownerUid === U()))) throw denied(); return; }
   }
   throw denied();
 }
@@ -173,13 +173,25 @@ function checkWrite(op, path, data, existing) {
     if (existing && existing.ownerUid === U()) return;
     throw denied();
   }
+  if (s[0] === 'pods' && (s[2] === 'messages' || s[2] === 'notes')) {
+    const p = s[1]; const pod = mem.get('pods/' + p) || {};
+    if (op === 'create') {
+      const okShape = s[2] === 'messages'
+        ? typeof data.text === 'string' && data.text.length > 0 && data.text.length <= 400 && Object.keys(data).every((k) => ['uid', 'name', 'text', 'createdAt'].includes(k))
+        : typeof data.title === 'string' && data.title.length > 0 && data.title.length <= 100 && typeof data.body === 'string' && data.body.length > 0 && data.body.length <= 6000 && Object.keys(data).every((k) => ['uid', 'name', 'title', 'body', 'createdAt'].includes(k));
+      if (podMember(p, U()) && data.uid === U() && okShape && typeof data.createdAt === 'number') return;
+      throw denied();
+    }
+    if (op === 'delete' && (existing.uid === U() || pod.ownerUid === U())) return;
+    throw denied();
+  }
   if (s[0] === 'pods' && s[2] === 'members') {
     const p = s[1];
     const pod = mem.get('pods/' + p) || {};
     const m = s[3];
     if (op === 'create') {
       const code = mem.get('podCodes/' + data.code);
-      if (m === U() && (pod.ownerUid === U() || (code && code.podId === p && code.active === true))) return;
+      if (m === U() && (pod.ownerUid === U() || (code && code.podId === p && code.active === true && (data.nameKey || '') === (code.nameKey || '')))) return;
       throw denied();
     }
     if (m === U() || pod.ownerUid === U()) return;

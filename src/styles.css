@@ -387,3 +387,17 @@ a.item-row:hover { background: var(--surface-2); }
 .quote { margin: 0 0 18px; padding: 16px 18px; border-radius: var(--r); background: var(--surface); border: 1px solid var(--line); border-left: 5px solid var(--brand); }
 .quote blockquote { margin: 0 0 6px; font-family: var(--font-head, inherit); font-size: 18px; line-height: 1.4; color: var(--ink); }
 .quote figcaption { color: var(--muted); font-size: 14px; }
+
+/* ---------- pod space ---------- */
+.pod-space { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 14px; }
+.pod-seat { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 12px 6px 10px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); text-align: center; min-width: 0; }
+.pod-seat.is-me { border-color: var(--accent, #1F5C4D); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent, #1F5C4D) 25%, transparent); }
+.pod-seat .nm { font-weight: 650; font-size: 14px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.student-icon.is-break { filter: grayscale(1); }
+.student-icon .heat-waves path { animation: heat-rise 1.6s ease-in-out infinite; transform-origin: center; }
+.student-icon .heat-waves path:nth-child(2) { animation-delay: .25s; }
+.student-icon .heat-waves path:nth-child(3) { animation-delay: .5s; }
+.student-icon .flame { animation: flame-flicker .5s ease-in-out infinite alternate; transform-origin: 32px 18px; }
+@keyframes heat-rise { 0%, 100% { transform: translateY(0); opacity: .55; } 50% { transform: translateY(-3px); opacity: 1; } }
+@keyframes flame-flicker { from { transform: scale(1, 1) rotate(-2deg); } to { transform: scale(1.08, 1.14) rotate(2deg); } }
+@media (prefers-reduced-motion: reduce) { .student-icon .heat-waves path, .student-icon .flame { animation: none; } }
