@@ -18,6 +18,18 @@ import {
   cleanQuestions, cleanTheory, cleanTheoryAnswers, applyTheoryMarks, makeAttempt, gradeAttempt, studentView, startPayload, buildAnalytics, GRACE_MS,
 } from './cbtcore.mjs';
 
+// Integrity events from the student's browser (left the tab, left fullscreen, tried to paste...).
+// They are evidence for the teacher to review, never an automatic penalty.
+const EVENT_KINDS = new Set(['blur', 'fullscreen_exit', 'paste', 'copy', 'hidden']);
+function mergeEvents(old, incoming) {
+  const out = Array.isArray(old) ? [...old] : [];
+  for (const e of Array.isArray(incoming) ? incoming.slice(0, 40) : []) {
+    if (out.length >= 120) break;
+    if (e && EVENT_KINDS.has(e.k)) out.push({ k: e.k, t: Number.isFinite(e.t) ? Math.round(e.t) : 0, q: Number.isInteger(e.q) ? e.q : null });
+  }
+  return out;
+}
+
 export function makeActions(io) {
   // A timed attempt that ran out of time is graded from the last saved progress.
   async function finalizeIfExpired(attempt, qdoc) {
@@ -87,7 +99,7 @@ export function makeActions(io) {
       for (const [k, v] of Object.entries(body.answers || {})) if (attempt.order[k] && Number.isInteger(v)) clean[k] = v;
       const qdoc = await io.getQuestions(body.classId, body.cbtId);
       const progressTheory = qdoc ? cleanTheoryAnswers(qdoc, body.theory) : {};
-      await io.putAttempt({ ...attempt, progress: clean, progressTheory });
+      await io.putAttempt({ ...attempt, progress: clean, progressTheory, events: mergeEvents(attempt.events, body.events) });
       return { ok: true };
     },
 
@@ -105,7 +117,7 @@ export function makeActions(io) {
         const source = inTime ? body.answers || {} : attempt.progress || {};
         for (const [k, v] of Object.entries(source)) if (attempt.order[k] && Number.isInteger(v)) clean[k] = v;
         const theoryAnswers = cleanTheoryAnswers(qdoc, inTime ? body.theory || {} : attempt.progressTheory || {});
-        attempt = { ...attempt, ...gradeAttempt(qdoc, attempt, clean), theoryAnswers, theoryGraded: false, submittedAt: io.now(), autoSubmitted: !inTime };
+        attempt = { ...attempt, events: mergeEvents(attempt.events, body.events), ...gradeAttempt(qdoc, attempt, clean), theoryAnswers, theoryGraded: false, submittedAt: io.now(), autoSubmitted: !inTime };
         await io.putAttempt(attempt);
       }
       return studentView(attempt, meta, qdoc);
@@ -156,7 +168,7 @@ export function makeActions(io) {
         items: [...latest.values()].map((a) => ({
           attemptId: a.id, uid: a.uid, name: a.name, submittedAt: a.submittedAt, autoSubmitted: !!a.autoSubmitted,
           answers: a.theoryAnswers || {}, marks: a.theoryMarks || {}, feedback: a.theoryFeedback || {},
-          graded: !!a.theoryGraded, score: a.theoryScore ?? null, total: a.theoryTotal ?? null,
+          graded: !!a.theoryGraded, focusLost: (a.events || []).filter((e) => e.k === 'blur' || e.k === 'hidden' || e.k === 'fullscreen_exit').length, pastes: (a.events || []).filter((e) => e.k === 'paste').length, score: a.theoryScore ?? null, total: a.theoryTotal ?? null,
         })).sort((x, y) => String(x.name).localeCompare(String(y.name))),
       };
     },

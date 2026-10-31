@@ -1,19 +1,20 @@
 import { useState } from 'react';
 import { useApp } from '../../lib/store.jsx';
+import { notify, activeStudentIds } from '../../lib/classwork.js';
 import { useLive, useAsync } from '../../lib/hooks.js';
 import { db } from '../../backend/index.js';
 import { cbt } from '../../lib/api.js';
 import { href } from '../../lib/router.js';
 import { toLocalInput, fromLocalInput } from '../../lib/util.js';
-import { Badge, Button, Card, Check, Empty, ErrorBlock, Notice, PageSkeleton, SectionTitle, SelectField, TextArea, TextField } from '../../ui/kit.jsx';
+import { Badge, Button, Card, Check, Empty, ErrorBlock, Notice, PageSkeleton, SectionTitle, SelectField, TextArea, TextField, useConfirm } from '../../ui/kit.jsx';
 import { Icon } from '../../ui/icons.jsx';
 import { AddQuestions, McqCard, TheoryCard, blankMcq, blankTheory, mcqProblem, theoryProblem, withKey } from './CbtQuestions.jsx';
 
-// Students can take a published CBT once the student test screen ships; until then publishing stays off.
-export const PUBLISH_READY = false;
+export const PUBLISH_READY = true;
 
 function Editor({ cls, tid, meta, initial }) {
-  const { fail, toast } = useApp();
+  const { fail, toast, user } = useApp();
+  const confirm = useConfirm();
   const [s, setS] = useState({
     title: meta.title || '', topic: meta.topic || '', description: meta.description || '',
     timeLimitMin: String(meta.timeLimitMin ?? 0), maxAttempts: String(meta.maxAttempts || 1),
@@ -75,6 +76,22 @@ function Editor({ cls, tid, meta, initial }) {
     } catch (e) { fail(e); return false; } finally { setBusy(false); }
   };
 
+  const publish = async () => {
+    if (!qs.length && !th.length) { toast('Add at least one question first.', 'error'); return; }
+    if ((qs.some((q) => q.aiDraft) || th.some((q) => q.aiDraft)) && !(await confirm('Some questions were drafted by the AI and you have not changed them. AI can make mistakes, so check the correct answers before students see them. Publish anyway?', { title: 'Check AI questions', confirmLabel: 'Publish anyway' }))) return;
+    if (!(await save())) return;
+    setBusy(true);
+    try {
+      await db.update(`classes/${cls.id}/cbts/${tid}`, { published: true, publishedAt: Date.now() });
+      toast('Published. Students can see it now.');
+      activeStudentIds(cls.id).then((ids) => notify(ids, { fromUid: user.uid, classId: cls.id, type: 'cbt', title: `New CBT in ${cls.name}`, body: s.title.trim(), link: `/class/${cls.id}/cbts/${tid}` })).catch(console.error);
+    } catch (e) { fail(e); } finally { setBusy(false); }
+  };
+  const unpublish = async () => {
+    if (!(await confirm('Students will no longer see this CBT. Attempts already made are kept.', { title: 'Unpublish', confirmLabel: 'Unpublish' }))) return;
+    try { await db.update(`classes/${cls.id}/cbts/${tid}`, { published: false }); toast('Unpublished'); } catch (e) { fail(e); }
+  };
+
   const del = (list, setList, i) => { setDirty(true); setList(list.filter((_, j) => j !== i)); };
   const dup = (list, setList, i) => { setDirty(true); const c = [...list]; c.splice(i + 1, 0, withKey({ ...list[i], id: undefined, aiDraft: false })); setList(c); };
 
@@ -133,10 +150,10 @@ function Editor({ cls, tid, meta, initial }) {
 
       <Card className="stack">
         <h3>Publishing</h3>
-        {PUBLISH_READY
-          ? <p className="muted">Publish when you are happy with the questions. Students are told as soon as it is live.</p>
-          : <Notice icon="clock">Publishing switches on with the student test screen, which is the next update. Until then you can build, import and save your CBTs.</Notice>}
-        <div><Button disabled={!PUBLISH_READY}>Publish</Button></div>
+        <p className="muted">{meta.published ? 'Students can open this CBT now. Changing questions after students have started is not recommended.' : 'Publish when you are happy with the questions. Students are told as soon as it is live.'}</p>
+        <div className="row wrap">
+          {meta.published ? <Button variant="ghost" onClick={unpublish}>Unpublish</Button> : <Button loading={busy} onClick={publish}>Save and publish</Button>}
+        </div>
       </Card>
     </div>
   );

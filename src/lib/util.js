@@ -131,6 +131,12 @@ export const CLASS_COLORS = [
   { id: 'rose', hex: '#B05A6B', name: 'Rose' },
   { id: 'teal', hex: '#2B8A87', name: 'Teal' },
   { id: 'clay', hex: '#AD6B49', name: 'Clay' },
+  { id: 'burgundy', hex: '#7D2E3F', name: 'Burgundy' },
+  { id: 'beige', hex: '#8F7A55', name: 'Beige' },
+  { id: 'blue', hex: '#2F63C4', name: 'Blue' },
+  { id: 'green', hex: '#2E7D3E', name: 'Green' },
+  { id: 'pink', hex: '#C2457F', name: 'Pink' },
+  { id: 'purple', hex: '#6B3FB5', name: 'Purple' },
 ];
 export const randomClassColor = () => CLASS_COLORS[Math.floor(Math.random() * CLASS_COLORS.length)].hex;
 

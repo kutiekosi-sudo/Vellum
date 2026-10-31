@@ -1,6 +1,9 @@
 // Short encouragement for teachers. The first four are well-documented lines with their authors;
 // the rest were written for Learnr and carry no attribution.
 export const TEACHER_QUOTES = [
+  { text: 'Never forget the weight of the responsibility you carry. Within your classroom may sit the mind that will cure an incurable disease, the hands that will build a nation, or the voice that will change the course of history. You may never know which child it is, but every time you choose patience over frustration, excellence over mediocrity, and belief over doubt, you help shape the future. So teach with purpose. Teach with courage.' },
+  { text: 'You may be tired. You may wonder whether your efforts are worth it. But history does not always remember the hands that planted the seed; it remembers the forest that grew from it. The child before you is not merely who they are today; they are also who they have not yet discovered they can become. Teach like your work matters, because it does.' },
+  { text: 'Without you, the world would not be what it is today.' },
   { text: 'It is the supreme art of the teacher to awaken joy in creative expression and knowledge.', by: 'Albert Einstein' },
   { text: 'The art of teaching is the art of assisting discovery.', by: 'Mark Van Doren' },
   { text: 'A teacher affects eternity; he can never tell where his influence stops.', by: 'Henry Adams' },

@@ -245,6 +245,8 @@ export function buildAnalytics(qdoc, attempts) {
     byStudent.get(a.uid).attempts.push({
       id: a.id, pct: a.pct, score: a.score, total: a.total, submittedAt: a.submittedAt,
       autoSubmitted: !!a.autoSubmitted, correctCount: a.correctCount, topics: a.topics,
+      focusLost: (a.events || []).filter((e) => e.k === 'blur' || e.k === 'hidden' || e.k === 'fullscreen_exit').length,
+      pastes: (a.events || []).filter((e) => e.k === 'paste').length,
     });
   }
   const inProgress = attempts.filter((a) => !a.submittedAt).map((a) => ({ uid: a.uid, name: a.name, startedAt: a.startedAt }));
