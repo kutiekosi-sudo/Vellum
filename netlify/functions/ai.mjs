@@ -131,6 +131,18 @@ const MODES = {
         `Write exactly ${n(p.count, 1, 15, 5)} multiple-choice practice questions on "${s(p.topic, 120)}" (${s(p.subject, 80) || 'general'}) for a student at this level: ${s(p.level, 80) || 'secondary school'}. Each has 4 options, exactly one correct. Mix recall and application.${p.notes ? `\nBase every question ONLY on these notes the student supplied; do not test anything they do not cover. Spread the questions across the WHOLE text so that nearly every distinct fact, definition, step and example is tested once, and do not repeat a question:\n${s(p.notes, 6000)}` : ''}\nReturn: [{"text":"question","options":["A","B","C","D"],"correct":0,"explanation":"short explanation","topic":"${s(p.topic, 80)}"}]` }] }],
     }),
   },
+  dependency_map: {
+    json: true, maxTokens: 1500,
+    build: (p) => {
+      const topics = (Array.isArray(p.topics) ? p.topics : []).slice(0, 30).map((t) => s(t, 80)).filter(Boolean);
+      if (topics.length < 2) throw new HttpError(400, 'Add at least two topics first.', 'few_topics');
+      return {
+        system: JSON_ONLY,
+        contents: [{ role: 'user', parts: [{ text:
+          `A student is learning these topics${p.subject ? ` in ${s(p.subject, 80)}` : ''}: ${topics.join('; ')}.\nDecide a sensible prerequisite order based on how the subject builds, using ONLY these exact topic names. A topic may depend on none, or on one to three of the others. Never make a topic depend on itself, and avoid circular dependencies.\nReturn: [{"topic":"exact name from the list","dependsOn":["exact names, or empty array"]}]` }] }],
+      };
+    },
+  },
   teach_back: {
     json: true, maxTokens: 1500,
     build: (p) => ({

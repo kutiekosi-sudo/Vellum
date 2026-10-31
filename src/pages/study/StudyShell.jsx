@@ -4,12 +4,14 @@ import Focus from './Focus.jsx';
 import Practice from './Practice.jsx';
 import Cards from './Cards.jsx';
 import Learn from './Learn.jsx';
+import Insights from './Insights.jsx';
 
 const TABS = [
-  { key: '', label: 'Focus timer', path: '/study' },
+  { key: '', label: 'Timer', path: '/study' },
   { key: 'learn', label: 'Prove it', path: '/study/learn' },
+  { key: 'insights', label: 'Insights', path: '/study/insights' },
   { key: 'practice', label: 'Practice', path: '/study/practice' },
-  { key: 'cards', label: 'Flashcards', path: '/study/cards' },
+  { key: 'cards', label: 'Cards', path: '/study/cards' },
 ];
 
 // Everything here works whether or not the student has joined a class.
@@ -23,6 +25,7 @@ export default function StudyShell({ route }) {
       </nav>
       {key === '' && <Focus />}
       {key === 'learn' && <Learn />}
+      {key === 'insights' && <Insights />}
       {key === 'practice' && <Practice />}
       {key === 'cards' && <Cards />}
     </div>
