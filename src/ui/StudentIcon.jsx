@@ -1,66 +1,56 @@
-// A small customisable student for the pod space. Pure SVG: a style, a shirt colour and a skin tone.
-// States: studying (full colour), break (grey), idle (faded). After 2 hours of study today, wavy heat lines rise
-// above the head; after 5 hours, a flame burns there.
-const INK = '#1F2328';
-
-export const ICON_STYLES = [
-  { id: 'short', label: 'Short hair' },
-  { id: 'curly', label: 'Curly hair' },
-  { id: 'long', label: 'Long hair' },
+// A thin line-drawing of a student at a desk. Studying: the student bends over the desk beside a lamp.
+// Break: a clock sits on the desk. Away: an empty desk with the lamp. Two hours of study today adds wavy
+// lines above the head, five hours puts a flame there. Break and away are drawn in grey.
+export const ICON_VARIANTS = [
+  { id: 'plain', label: 'Plain' },
+  { id: 'bun', label: 'Bun' },
   { id: 'cap', label: 'Cap' },
+  { id: 'band', label: 'Headband' },
   { id: 'glasses', label: 'Glasses' },
-  { id: 'wrap', label: 'Head wrap' },
 ];
-export const ICON_COLORS = ['#1F5C4D', '#2F63C4', '#6B3FB5', '#C2457F', '#7D2E3F', '#2B8A87', '#B98322', '#566A93'];
-export const SKIN_TONES = ['#F6D5B8', '#E8B58B', '#C68B59', '#8D5A3B', '#5B3A29'];
-export const DEFAULT_ICON = { style: 'short', color: '#1F5C4D', skin: '#C68B59' };
+export const ICON_COLORS = ['#7C83D6', '#C2457F', '#2B8A87', '#7D2E3F', '#4F8A68', '#B98322', '#8878C3', '#3D77A8'];
+export const DEFAULT_ICON = { variant: 'plain', color: '#7C83D6' };
 export const HEAT_WAVES_MIN = 120;
 export const HEAT_FIRE_MIN = 300;
-
-const P = { stroke: INK, strokeWidth: 2.2, strokeLinecap: 'round', strokeLinejoin: 'round' };
-
-function Hair({ style, hair }) {
-  switch (style) {
-    case 'curly': return <g fill={hair} {...P}><circle cx="22" cy="26" r="7" /><circle cx="32" cy="21" r="8" /><circle cx="42" cy="26" r="7" /><circle cx="19" cy="34" r="5" /><circle cx="45" cy="34" r="5" /></g>;
-    case 'long': return <path d="M20 34c-2-14 6-20 12-20s14 6 12 20v14h-6V32H26v16h-6z" fill={hair} {...P} />;
-    case 'cap': return <g {...P}><path d="M20 30c0-9 6-13 12-13s12 4 12 13z" fill={hair} /><path d="M40 30h12c0 3-3 5-8 5h-4z" fill={hair} /></g>;
-    case 'wrap': return <g {...P}><path d="M19 32c0-10 6-15 13-15s13 5 13 15c-8-3-18-3-26 0z" fill={hair} /><path d="M24 22c6 3 11 3 17 0" fill="none" /></g>;
-    case 'glasses':
-    case 'short':
-    default: return <path d="M20 31c0-9 5-13 12-13s12 4 12 13c-3-4-7-6-12-6s-9 2-12 6z" fill={hair} {...P} />;
-  }
-}
+const GREY = '#8F959B';
 
 export default function StudentIcon({ icon = DEFAULT_ICON, state = 'studying', minutes = 0, size = 72, label }) {
-  const { style, color, skin } = { ...DEFAULT_ICON, ...(icon || {}) };
-  const hair = style === 'cap' || style === 'wrap' ? color : '#2B2118';
-  const grey = state === 'break';
-  const faded = state === 'idle';
-  const heat = state === 'studying' ? (minutes >= HEAT_FIRE_MIN ? 'fire' : minutes >= HEAT_WAVES_MIN ? 'waves' : '') : '';
-  const body = grey ? '#9AA0A6' : color;
+  const { variant, color } = { ...DEFAULT_ICON, ...(icon || {}) };
+  const studying = state === 'studying';
+  const c = studying ? color : GREY;
+  const heat = studying ? (minutes >= HEAT_FIRE_MIN ? 'fire' : minutes >= HEAT_WAVES_MIN ? 'waves' : '') : '';
+  const line = { fill: 'none', stroke: c, strokeWidth: 2.4, strokeLinecap: 'round', strokeLinejoin: 'round' };
   return (
-    <svg className={`student-icon${grey ? ' is-break' : ''}${faded ? ' is-idle' : ''}`} width={size} height={size} viewBox="0 0 64 72" role="img"
-      aria-label={label || `Student, ${state === 'studying' ? 'studying' : state === 'break' ? 'on a break' : 'not studying'}${heat === 'fire' ? ', on fire after five hours' : heat === 'waves' ? ', heating up after two hours' : ''}`}
-      style={{ opacity: faded ? 0.45 : 1, overflow: 'visible' }}>
+    <svg className={`student-icon is-${state}`} width={size} height={size} viewBox="0 0 80 80" role="img" style={{ overflow: 'visible' }}
+      aria-label={label || (studying ? `Studying${heat === 'fire' ? ', on fire after five hours' : heat === 'waves' ? ', heating up after two hours' : ''}` : state === 'break' ? 'On a break' : 'Not studying')}>
+      {/* desk */}
+      <g {...line}>
+        <path d="M10 52h60" /><path d="M16 52v18M64 52v18" /><path d="M10 52v0" />
+      </g>
+      {/* lamp */}
+      {state !== 'break' && <g {...line}><path d="M56 52v-4M49 48h14" /><path d="M56 48l-4-14 10-2 2 8-8 8" /><path d="M52 34l10-2" /></g>}
+      {state === 'break' && <g {...line}><circle cx="52" cy="38" r="9" /><path d="M52 33v5l4 2" /><path d="M52 47v5" /></g>}
+      {studying && (
+        <g {...line}>
+          <circle cx="32" cy="30" r="7" />
+          <path d="M20 52v-5a12 12 0 0 1 24 0v5" />
+          {variant === 'bun' && <circle cx="32" cy="20" r="3.5" />}
+          {variant === 'cap' && <path d="M24 28a8 8 0 0 1 16 0z M39 28h8" />}
+          {variant === 'band' && <path d="M25.5 27c4 2.5 9 2.5 13 0" />}
+          {variant === 'glasses' && <><circle cx="29.5" cy="30" r="2.6" /><circle cx="35.5" cy="30" r="2.6" /></>}
+        </g>
+      )}
       {heat === 'waves' && (
-        <g className="heat-waves" fill="none" stroke="#E07B39" strokeWidth="2.4" strokeLinecap="round">
-          <path d="M22 12c-3-3 3-5 0-8" /><path d="M32 12c-3-3 3-5 0-8" /><path d="M42 12c-3-3 3-5 0-8" />
+        <g className="heat-waves" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round">
+          <path d="M24 16c-3-3 3-5 0-9" /><path d="M32 14c-3-3 3-5 0-9" /><path d="M40 16c-3-3 3-5 0-9" />
         </g>
       )}
       {heat === 'fire' && (
         <g className="flame">
-          <path d="M32 18c-7-5-9-11-3-17 1 5 5 5 6 1 4 4 6 9-3 16z" fill="#F59E0B" stroke="#C2410C" strokeWidth="1.8" strokeLinejoin="round" />
-          <path d="M32 17c-3-3-3-6-1-9 3 3 5 6 1 9z" fill="#FDE68A" />
+          <path d="M32 21c-8-5-9-12-3-19 1 5 5 5 6 1 4 4 5 11-3 18z" fill="#F2A33A" stroke="#D9622B" strokeWidth="1.6" strokeLinejoin="round" />
+          <path d="M32 19c-3-3-3-6-1-9 3 3 4 6 1 9z" fill="#FBD98B" />
         </g>
       )}
-      <path d="M12 72c0-14 9-22 20-22s20 8 20 22z" fill={body} {...P} />
-      <rect x="28" y="42" width="8" height="9" rx="3" fill={grey ? '#B8BDC2' : skin} {...P} />
-      <circle cx="32" cy="34" r="13" fill={grey ? '#B8BDC2' : skin} {...P} />
-      <Hair style={style} hair={grey ? '#6B7075' : hair} />
-      {style === 'glasses' && <g fill="none" {...P} strokeWidth="1.8"><circle cx="26.5" cy="35" r="4" /><circle cx="37.5" cy="35" r="4" /><path d="M30.5 35h3" /></g>}
-      <circle cx="27" cy="35" r="1.5" fill={INK} /><circle cx="37" cy="35" r="1.5" fill={INK} />
-      {state === 'studying' ? <path d="M28 41c2 2 6 2 8 0" fill="none" {...P} strokeWidth="1.8" /> : grey ? <path d="M28 42h8" fill="none" {...P} strokeWidth="1.8" /> : <path d="M28 41c2 1.5 6 1.5 8 0" fill="none" {...P} strokeWidth="1.8" />}
-      {grey && <text x="46" y="20" fontSize="11" fontWeight="700" fill="#6B7075">z</text>}
     </svg>
   );
 }

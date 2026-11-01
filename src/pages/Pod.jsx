@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useApp } from '../lib/store.jsx';
 import { useLive, useNow } from '../lib/hooks.js';
-import StudentIcon, { DEFAULT_ICON, ICON_COLORS, ICON_STYLES, SKIN_TONES, HEAT_FIRE_MIN, HEAT_WAVES_MIN } from '../ui/StudentIcon.jsx';
+import StudentIcon, { DEFAULT_ICON, ICON_COLORS, ICON_VARIANTS } from '../ui/StudentIcon.jsx';
 import { db } from '../backend/index.js';
-import { createPod, joinPod, leavePod, closePod, syncMyStats } from '../lib/pods.js';
+import { createPod, joinPod, leavePod, closePod, syncMyStats, pushState } from '../lib/pods.js';
 import { CLASS_COLORS, fmtDate, fmtMinutes, plural, relative, shortName } from '../lib/util.js';
 import { Badge, Button, Card, CopyButton, Empty, Notice, PageHead, PageSkeleton, Seg, TextArea, TextField, useConfirm } from '../ui/kit.jsx';
 
@@ -12,34 +12,33 @@ const todayOf = (x, now) => {
   const base = x.todayDay === new Date(now).toDateString() ? (x.todayMin || 0) : 0;
   return stateOf(x, now) === 'studying' && x.stateSince ? base + Math.max(0, Math.floor((now - x.stateSince) / 60000)) : base;
 };
-const SPACE_GROUPS = [['studying', 'Studying now'], ['break', 'On a break'], ['idle', 'Not studying right now']];
 
 function IconEditor({ onClose }) {
-  const { profile, patchProfile, fail, toast } = useApp();
+  const { user, profile, patchProfile, fail, toast } = useApp();
   const cur = { ...DEFAULT_ICON, ...((profile.settings && profile.settings.avatar) || {}) };
   const [icon, setIcon] = useState(cur);
   const [busy, setBusy] = useState(false);
   const save = async () => {
     setBusy(true);
-    try {
-      await patchProfile({ settings: { ...(profile.settings || {}), avatar: icon } });
-      toast('Your student is saved');
-      onClose(icon);
-    } catch (e) { fail(e); } finally { setBusy(false); }
+    try { await patchProfile({ settings: { ...(profile.settings || {}), avatar: icon } });
+      const ids = (await db.list(`users/${user.uid}/podMemberships`)).map((x) => x.podId);
+      await pushState(user, ids, { avatar: icon });
+      toast('Your icon is saved'); onClose(icon); } catch (e) { fail(e); } finally { setBusy(false); }
   };
   return (
-    <Card className="stack">
-      <div className="row between wrap"><h3>Your student</h3><StudentIcon icon={icon} state="studying" size={80} /></div>
-      <div className="stack sm"><span className="muted small">Style</span>
-        <div className="row wrap">{ICON_STYLES.map((s) => <Button key={s.id} size="sm" variant={icon.style === s.id ? 'primary' : 'ghost'} onClick={() => setIcon({ ...icon, style: s.id })}>{s.label}</Button>)}</div></div>
-      <div className="stack sm"><span className="muted small">Colour</span>
-        <div className="row wrap">{ICON_COLORS.map((c) => <button key={c} type="button" aria-label={`Colour ${c}`} aria-pressed={icon.color === c} onClick={() => setIcon({ ...icon, color: c })} style={{ width: 36, height: 36, borderRadius: 18, background: c, border: icon.color === c ? '3px solid #1F2328' : '2px solid #fff', boxShadow: '0 0 0 1px #c9c9c2' }} />)}</div></div>
-      <div className="stack sm"><span className="muted small">Skin tone</span>
-        <div className="row wrap">{SKIN_TONES.map((c) => <button key={c} type="button" aria-label={`Skin tone ${c}`} aria-pressed={icon.skin === c} onClick={() => setIcon({ ...icon, skin: c })} style={{ width: 36, height: 36, borderRadius: 18, background: c, border: icon.skin === c ? '3px solid #1F2328' : '2px solid #fff', boxShadow: '0 0 0 1px #c9c9c2' }} />)}</div></div>
-      <div className="row wrap"><Button loading={busy} onClick={save}>Save my student</Button><Button variant="ghost" onClick={() => onClose(null)}>Cancel</Button></div>
-    </Card>
+    <div className="stack">
+      <div className="row between wrap"><strong>Your icon</strong><StudentIcon icon={icon} state="studying" size={84} /></div>
+      <div className="stack sm"><span className="muted small">Look</span>
+        <div className="row wrap">{ICON_VARIANTS.map((v) => <Button key={v.id} size="sm" variant={icon.variant === v.id ? 'primary' : 'ghost'} onClick={() => setIcon({ ...icon, variant: v.id })}>{v.label}</Button>)}</div></div>
+      <div className="stack sm"><span className="muted small">Icon colour</span>
+        <div className="row wrap">{ICON_COLORS.map((c) => <button key={c} type="button" aria-label={`Icon colour ${c}`} aria-pressed={icon.color === c} onClick={() => setIcon({ ...icon, color: c })} style={{ width: 34, height: 34, borderRadius: 17, background: c, border: icon.color === c ? '3px solid #1F2328' : '2px solid #fff', boxShadow: '0 0 0 1px #c9c9c2' }} />)}</div></div>
+      <div className="row wrap"><Button loading={busy} onClick={save}>Save my icon</Button><Button variant="ghost" onClick={() => onClose(null)}>Cancel</Button></div>
+    </div>
   );
 }
+
+const hms = (sec) => { sec = Math.max(0, Math.floor(sec)); const p = (n) => String(n).padStart(2, '0'); return `${Math.floor(sec / 3600)}:${p(Math.floor((sec % 3600) / 60))}:${p(sec % 60)}`; };
+const ORDER = { studying: 0, break: 1, idle: 2 };
 
 const PRESETS = [{ m: 30, l: '30 min' }, { m: 60, l: '1 hour' }, { m: 120, l: '2 hours' }, { m: 180, l: '3 hours' }, { m: 300, l: '5 hours' }];
 
@@ -79,38 +78,32 @@ function Countdown({ podId, now }) {
   );
 }
 
-function SpaceView({ m, list, now, user }) {
+function SpaceView({ list, now, user }) {
   const { profile } = useApp();
   const [editing, setEditing] = useState(false);
   const myIcon = (profile.settings && profile.settings.avatar) || null;
-  const rows = list.map((x) => ({ x, st: stateOf(x, now), min: todayOf(x, now) }));
+  const rows = list.map((x) => {
+    const st = stateOf(x, now);
+    const base = (x.todayDay === new Date(now).toDateString() ? (x.todayMin || 0) : 0) * 60;
+    const sec = st === 'studying' && x.stateSince ? base + Math.max(0, (now - x.stateSince) / 1000) : base;
+    return { x, st, sec, min: sec / 60 };
+  }).sort((a, b) => ORDER[a.st] - ORDER[b.st] || b.sec - a.sec);
   return (
     <div className="stack">
-      {editing ? <IconEditor onClose={() => setEditing(false)} /> : <div><Button size="sm" variant="ghost" onClick={() => setEditing(true)}>Change my student</Button></div>}
-      {SPACE_GROUPS.map(([k, label]) => {
-        const group = rows.filter((r) => r.st === k);
-        if (!group.length) return null;
-        return (
-          <div className="stack sm" key={k}>
-            <strong>{label} <span className="muted small">({group.length})</span></strong>
-            <div className="pod-space" data-group={k}>
-              {group.map(({ x, st, min }) => {
-                const mine = (x.uid || x.id) === user.uid;
-                return (
-                  <div key={x.id} className={`pod-seat${mine ? ' is-me' : ''}`} data-state={st}>
-                    <StudentIcon icon={mine && myIcon ? myIcon : x.avatar} state={st} minutes={min} size={64} />
-                    <span className="nm">{x.name || 'Student'}{mine ? ' (you)' : ''}</span>
-                    <span className="muted small">{min > 0 ? `${fmtMinutes(min)} today` : 'Not yet today'}</span>
-                    {st === 'studying' && min >= HEAT_FIRE_MIN && <Badge tone="warn">On fire</Badge>}
-                    {st === 'studying' && min >= HEAT_WAVES_MIN && min < HEAT_FIRE_MIN && <Badge>Heating up</Badge>}
-                  </div>
-                );
-              })}
+      <div className="pod-space">
+        {rows.map(({ x, st, sec, min }) => {
+          const mine = (x.uid || x.id) === user.uid;
+          return (
+            <div key={x.id} className={`pod-seat${mine ? ' is-me' : ''}`} data-state={st}>
+              <StudentIcon icon={mine && myIcon ? myIcon : x.avatar} state={st} minutes={min} size={72} />
+              <span className="nm">{x.name || 'Student'}</span>
+              <span className="tm">{hms(sec)}</span>
             </div>
-          </div>
-        );
-      })}
-      <p className="muted small">Study for 2 hours today and your student heats up. Reach 5 hours and it catches fire. A grey student is on a break.</p>
+          );
+        })}
+      </div>
+      {editing ? <IconEditor onClose={() => setEditing(false)} /> : <div><Button size="sm" variant="ghost" onClick={() => setEditing(true)}>Change my icon</Button></div>}
+      <p className="muted small">Study for 2 hours today and wavy heat lines rise above your head. Reach 5 hours and it catches fire. Grey means break or away. The time under each name is today's study time.</p>
     </div>
   );
 }
@@ -118,10 +111,10 @@ function SpaceView({ m, list, now, user }) {
 const POD_ACCENTS = [...CLASS_COLORS.filter((c) => ['burgundy', 'teal', 'sage', 'blue', 'green', 'rose', 'plum', 'slate', 'clay', 'ochre'].includes(c.id)), { id: 'lavender', hex: '#8878C3', name: 'Lavender' }];
 
 function AccentPicker({ podId, current }) {
-  const { fail, toast } = useApp();
-  const pick = async (hex) => { try { await db.update(`pods/${podId}`, { accent: hex }); toast('Pod colour changed'); } catch (e) { fail(e); } };
+  const { user, fail } = useApp();
+  const pick = async (hex) => { try { await db.update(`users/${user.uid}/podMemberships/${podId}`, { accent: hex }); } catch (e) { fail(e); } };
   return (
-    <div className="stack sm"><span className="muted small">Pod colour</span>
+    <div className="stack sm"><span className="muted small">My colour for this pod (only you see it)</span>
       <div className="row wrap">{POD_ACCENTS.map((c) => <button key={c.id} type="button" title={c.name} aria-label={c.name} aria-pressed={current === c.hex} onClick={() => pick(c.hex)} style={{ width: 34, height: 34, borderRadius: 17, background: c.hex, border: current === c.hex ? '3px solid #1F2328' : '2px solid #fff', boxShadow: '0 0 0 1px #c9c9c2' }} />)}</div>
     </div>
   );
@@ -232,7 +225,7 @@ function PodView({ m, sessions }) {
       <Card className="stack sm"><strong>{m.name}</strong><p className="muted">This pod was closed by its owner.</p><div><Button variant="ghost" size="sm" onClick={() => db.del(`users/${user.uid}/podMemberships/${m.podId}`).catch(fail)}>Remove from my list</Button></div></Card>
     );
   }
-  const accent = (pod.data && pod.data.accent) || '';
+  const accent = m.accent || '';
   return (
     <Card className="stack" style={accent ? { '--accent': accent, '--brand': accent, '--brand-deep': `color-mix(in srgb, ${accent} 80%, black)`, '--accent-soft': `color-mix(in srgb, ${accent} 14%, #fff)`, '--accent-line': `color-mix(in srgb, ${accent} 40%, #fff)`, '--accent-deep': `color-mix(in srgb, ${accent} 80%, black)`, borderTop: `5px solid ${accent}` } : undefined}>
       <div className="row between wrap"><h3 className="break" style={accent ? { color: accent } : undefined}>{m.name}</h3><div className="row"><Badge>{m.code}</Badge><CopyButton text={m.code} /></div></div>
@@ -241,8 +234,8 @@ function PodView({ m, sessions }) {
         <>
           {others === 0 && <p className="muted">Share the pod name <strong>{m.name}</strong> and code <strong>{m.code}</strong> with friends. They need both to join.</p>}
           <Countdown podId={m.podId} now={now} />
-          <SpaceView m={m} list={list} now={now} user={user} />
-          {m.owner && <AccentPicker podId={m.podId} current={accent} />}
+          <SpaceView list={list} now={now} user={user} />
+          <AccentPicker podId={m.podId} current={accent} />
         </>
       ) : tab === 'chat' ? <PodChat m={m} isOwner={m.owner} /> : tab === 'notes' ? <PodNotes m={m} isOwner={m.owner} /> : (
         <>
