@@ -4,8 +4,10 @@ import { useLive } from '../lib/hooks.js';
 import { db } from '../backend/index.js';
 import { href } from '../lib/router.js';
 import { DAY, startOfDay } from '../lib/util.js';
+import { syncTopic } from '../lib/scheme.js';
+import Scheme from './Scheme.jsx';
 import { EVENT_TYPES, dateInput, dayShade, fromDateInput, monthHue, teachingStatus, typeOf } from '../lib/calendar.js';
-import { Badge, Button, Card, Empty, Notice, PageHead, PageSkeleton, SectionTitle, SelectField, TextArea, TextField, useConfirm } from '../ui/kit.jsx';
+import { Badge, Button, Card, Empty, Notice, PageHead, PageSkeleton, SectionTitle, Seg, SelectField, TextArea, TextField, useConfirm } from '../ui/kit.jsx';
 
 const path = (uid) => `users/${uid}/calendar`;
 const dateWord = (t) => new Date(t).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
@@ -36,7 +38,7 @@ export function TeachingToday({ compact }) {
   const { loading, events } = useEvents();
   if (loading) return null;
   const s = teachingStatus(events);
-  const done = async (e) => { try { await db.update(`${path(user.uid)}/${e.id}`, { done: true, doneAt: Date.now() }); } catch (er) { fail(er); } };
+  const done = async (e) => { try { await db.update(`${path(user.uid)}/${e.id}`, { done: true, doneAt: Date.now() }); if (e.topicId) await syncTopic(db, user.uid, e.schemeClass, e.topicId, true); } catch (er) { fail(er); } };
   const move = async (e) => { try { await db.update(`${path(user.uid)}/${e.id}`, { date: startOfDay() }); } catch (er) { fail(er); } };
   const lessonsToday = s.today.filter((e) => e.type === 'lesson');
   const behind = s.behind.length + s.overdueTasks.length;
@@ -79,7 +81,7 @@ function EventForm({ initial, classes, onSave, onCancel }) {
   );
 }
 
-export default function Calendar() {
+function CalendarView() {
   const { user, fail, toast } = useApp();
   const confirm = useConfirm();
   const { loading, events } = useEvents();
@@ -104,12 +106,11 @@ export default function Calendar() {
       setForm(null); setPicked(data.date); toast('Saved to your calendar');
     } catch (e) { fail(e); }
   };
-  const toggle = async (e) => { try { await db.update(`${path(user.uid)}/${e.id}`, { done: !e.done, doneAt: e.done ? 0 : Date.now() }); } catch (er) { fail(er); } };
+  const toggle = async (e) => { try { await db.update(`${path(user.uid)}/${e.id}`, { done: !e.done, doneAt: e.done ? 0 : Date.now() }); if (e.topicId) await syncTopic(db, user.uid, e.schemeClass, e.topicId, !e.done); } catch (er) { fail(er); } };
   const remove = async (e) => { if (!(await confirm(`Delete "${e.title}"?`, { title: 'Delete', confirmLabel: 'Delete', danger: true }))) return; try { await db.del(`${path(user.uid)}/${e.id}`); } catch (er) { fail(er); } };
 
   return (
     <div className="stack lg">
-      <PageHead title="Calendar" sub="Plan lessons, tasks, deadlines and exams. Learnr tells you what to teach today and where you are behind." />
       <TeachingToday />
       {loading ? <PageSkeleton rows={3} /> : (
         <Card className="stack" style={{ background: `hsl(${hue} 40% 97%)` }}>
@@ -151,6 +152,17 @@ export default function Calendar() {
           ))}
         </Card>
       )}
+    </div>
+  );
+}
+
+export default function Calendar() {
+  const [tab, setTab] = useState('calendar');
+  return (
+    <div className="stack lg">
+      <PageHead title="Calendar" sub="Plan lessons, tasks, deadlines and exams. Learnr tells you what to teach today and where you are behind." />
+      <Seg label="Planner sections" value={tab} onChange={setTab} options={[{ value: 'calendar', label: 'Calendar' }, { value: 'scheme', label: 'Scheme of work' }]} />
+      {tab === 'calendar' ? <CalendarView /> : <Scheme />}
     </div>
   );
 }
