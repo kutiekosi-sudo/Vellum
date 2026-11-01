@@ -389,11 +389,11 @@ a.item-row:hover { background: var(--surface-2); }
 .quote figcaption { color: var(--muted); font-size: 14px; }
 
 /* ---------- pod space ---------- */
-.pod-space { display: grid; align-items: start; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 36px 10px; padding: 38px 12px 18px; border-radius: 18px; }
+.pod-space { display: grid; align-items: start; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 56px 12px; padding: 44px 12px 30px; border-radius: 18px; }
 .pod-space.themed { padding: 40px 12px 22px; }
 .pod-seat .student-icon { width: 100%; max-width: 76px; height: auto; }
 @media (max-width: 520px) { .pod-seat .nm { font-size: 12px; } .pod-seat .tm { font-size: 11px; } }
-@media (min-width: 521px) { .pod-space, .pod-space.themed { gap: 44px 18px; padding-left: 24px; padding-right: 24px; } }
+@media (min-width: 521px) { .pod-space, .pod-space.themed { gap: 64px 22px; padding-left: 28px; padding-right: 28px; } }
 .pod-seat { display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; min-width: 0; color: var(--seat); }
 .pod-seat .nm { font-weight: 600; font-size: 14px; max-width: 100%; line-height: 1.15; overflow-wrap: anywhere; margin-top: 4px; min-height: 2.3em; display: flex; align-items: center; justify-content: center; }
 .pod-seat .tm { font-size: 13px; font-variant-numeric: tabular-nums; opacity: .85; }

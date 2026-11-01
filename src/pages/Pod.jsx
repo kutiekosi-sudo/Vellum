@@ -18,7 +18,7 @@ const ORDER = { studying: 0, break: 1, idle: 2 };
 
 const PRESETS = [{ m: 30, l: '30 min' }, { m: 60, l: '1 hour' }, { m: 120, l: '2 hours' }, { m: 180, l: '3 hours' }, { m: 300, l: '5 hours' }];
 
-function Countdown({ podId, now }) {
+function Countdown({ podId, now, mode = 'setup' }) {
   const { user, profile, fail } = useApp();
   const doc = useLive(`pods/${podId}/state/countdown`);
   const [custom, setCustom] = useState('');
@@ -30,6 +30,7 @@ function Countdown({ podId, now }) {
     try { await db.set(`pods/${podId}/state/countdown`, { minutes, startedAt: t, endsAt: t + minutes * 60000, by: shortName(profile.displayName), byUid: user.uid, active: true }); setCustom(''); } catch (e) { fail(e); }
   };
   const end = async () => { try { await db.set(`pods/${podId}/state/countdown`, { minutes: c.minutes, startedAt: c.startedAt, endsAt: c.endsAt, by: c.by || '', active: false, byUid: user.uid }); } catch (e) { fail(e); } };
+  if (mode === 'display' && !live) return null;
   if (live) {
     const left = Math.ceil((c.endsAt - now) / 1000);
     const h = Math.floor(left / 3600); const mm = Math.floor((left % 3600) / 60); const ss = left % 60;
@@ -100,7 +101,6 @@ function SpaceView({ list, now, user, theme }) {
           </div>
         ))}
       </div>
-      <p className="muted small">Study for 2 hours today and dots appear beside your head. Reach 5 hours and a flame appears above it. A faded icon means a break or away. The time under each name is today's study time.</p>
     </div>
   );
 }
@@ -213,14 +213,20 @@ function PodView({ m, sessions }) {
   return (
     <Card className="stack">
       <div className="row between wrap"><h3 className="break">{m.name}</h3><div className="row"><Badge>{m.code}</Badge><CopyButton text={m.code} /></div></div>
-      <Seg label={`${m.name} sections`} value={tab} onChange={setTab} options={[{ value: 'space', label: 'Space' }, { value: 'chat', label: 'Chat' }, { value: 'notes', label: 'Notes' }, { value: 'board', label: 'This week' }]} />
+      <Seg label={`${m.name} sections`} value={tab} onChange={setTab} options={[{ value: 'space', label: 'Space' }, { value: 'chat', label: 'Chat' }, { value: 'notes', label: 'Notes' }, { value: 'board', label: 'This week' }, { value: 'settings', label: 'Settings' }]} />
       {members.loading ? <PageSkeleton rows={1} /> : tab === 'space' ? (
         <>
-          {others === 0 && <p className="muted">Share the pod name <strong>{m.name}</strong> and code <strong>{m.code}</strong> with friends. They need both to join.</p>}
-          <Countdown podId={m.podId} now={now} />
+          <Countdown podId={m.podId} now={now} mode="display" />
           <SpaceView list={list} now={now} user={user} theme={m.theme} />
-          <ThemePicker podId={m.podId} current={m.theme} />
         </>
+      ) : tab === 'settings' ? (
+        <div className="stack lg">
+          <div className="stack sm"><strong>Invite friends</strong><p className="muted">Share the pod name <strong>{m.name}</strong> and the code <strong>{m.code}</strong>. They need both to join, so the pod stays private.</p></div>
+          <ThemePicker podId={m.podId} current={m.theme} />
+          <Countdown podId={m.podId} now={now} />
+          <p className="muted small">Study for 2 hours today and dots appear beside your head. Reach 5 hours and a flame appears above it. A faded icon means a break or away. The time under each name is today's study time. Pod members see your first name and last initial, whether you are studying, your minutes and your streak. Nothing else from your study space is shared.</p>
+          <div className="row wrap">{m.owner ? <Button variant="ghost" size="sm" onClick={close}>Close pod</Button> : <Button variant="ghost" size="sm" onClick={leave}>Leave pod</Button>}</div>
+        </div>
       ) : tab === 'chat' ? <PodChat m={m} isOwner={m.owner} /> : tab === 'notes' ? <PodNotes m={m} isOwner={m.owner} /> : (
         <>
           {others > 0 && me && (
@@ -240,8 +246,6 @@ function PodView({ m, sessions }) {
           </div>
         </>
       )}
-      <p className="muted small">Pod members see your first name and last initial, your student icon, whether you are studying, minutes studied and your streak. Nothing else from your study space is shared. The pod is private: people need both its name and code to join.</p>
-      <div className="row wrap">{m.owner ? <Button variant="ghost" size="sm" onClick={close}>Close pod</Button> : <Button variant="ghost" size="sm" onClick={leave}>Leave pod</Button>}</div>
     </Card>
   );
 }
@@ -259,12 +263,15 @@ function Pods() {
   const join = async () => { setBusy('j'); try { await joinPod(user, profile, code, jname); setCode(''); setJname(''); toast('You joined the pod'); } catch (e) { fail(e); } finally { setBusy(''); } };
   return (
     <div className="stack lg">
-      <p className="muted">A study pod is a small private group of friends who keep each other going. You see who is studying, who is on a break, and each other's minutes. It works whether or not you are in a class.</p>
+      {list.length === 0 && !mine.loading && <p className="muted">A study pod is a small private group of friends who keep each other going. You see who is studying, who is on a break, and each other's minutes. It works whether or not you are in a class.</p>}
       {mine.loading ? <PageSkeleton rows={2} /> : list.length === 0 ? <Empty art="pod" title="You are not in a pod yet" text="Create one and share its name and code, or join a friend's pod." /> : list.map((m) => <PodView key={m.podId} m={m} sessions={sessions.data} />)}
+      <details open={list.length === 0}>
+      <summary className="muted" style={{ cursor: 'pointer', marginBottom: 12 }}>Start or join another pod</summary>
       <div className="grid cols-2">
         <Card className="stack sm"><strong>Start a pod</strong><TextField label="Pod name" value={name} onChange={(e) => setName(e.target.value)} maxLength={60} autoComplete="off" /><div><Button loading={busy === 'c'} disabled={!name.trim()} onClick={create}>Create pod</Button></div></Card>
         <Card className="stack sm"><strong>Join a pod</strong><TextField label="Pod name" value={jname} onChange={(e) => setJname(e.target.value)} maxLength={60} autoComplete="off" /><TextField label="Pod code" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="POD-XXXX" maxLength={12} autoComplete="off" /><div><Button loading={busy === 'j'} disabled={code.trim().length < 5 || !jname.trim()} onClick={join}>Join pod</Button></div></Card>
       </div>
+      </details>
     </div>
   );
 }
