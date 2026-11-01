@@ -411,3 +411,15 @@ a.item-row:hover { background: var(--surface-2); }
 @keyframes dot-pulse { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
 @keyframes flame-flicker { from { opacity: 1; } to { opacity: .8; } }
 @media (prefers-reduced-motion: reduce) { .student-icon .dots circle, .student-icon .flame { animation: none; } }
+
+/* ---------- study statistics ---------- */
+.stats-cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
+.stats-dow { text-align: center; padding: 4px 0; }
+.stats-cell { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 52px; border: 0; border-radius: 6px; font: inherit; font-size: 13px; color: #1F2328; background: color-mix(in srgb, var(--accent, #1F5C4D) var(--p), #fff); }
+.stats-cell[data-level="0"] { background: var(--surface-2, #EEEDE6); }
+.stats-cell[data-level="3"], .stats-cell[data-level="4"] { color: #fff; }
+.stats-cell .t { font-size: 11px; font-variant-numeric: tabular-nums; min-height: 13px; }
+button.stats-cell { cursor: pointer; }
+.stats-cell[data-sel="1"] { outline: 2px solid #1F2328; outline-offset: -2px; }
+.stats-key { width: 18px; height: 12px; border-radius: 3px; background: color-mix(in srgb, var(--accent, #1F5C4D) var(--p), #fff); }
+.stats-key[style*="--p: 0%"] { background: var(--surface-2, #EEEDE6); }

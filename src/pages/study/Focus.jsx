@@ -5,6 +5,8 @@ import { db } from '../../backend/index.js';
 import { PHASES, summarize, beep, minutesOf } from '../../lib/study.js';
 import { fmtClock, fmtDateTime, fmtMinutes, plural, shortName } from '../../lib/util.js';
 import { pushState } from '../../lib/pods.js';
+import { guessSubject } from '../../lib/subjects.js';
+import Subjects, { useSubjects } from './Subjects.jsx';
 import { Badge, Button, Card, Empty, Progress, SectionTitle, SelectField, Seg, TextField } from '../../ui/kit.jsx';
 
 const KEY = 'learnr.timer.v1';
@@ -26,6 +28,8 @@ export default function Focus() {
   const [mode, setMode] = useState(() => (read() || {}).mode || 'solo');
   const [classId, setClassId] = useState(() => (read() || {}).classId || '');
   const [topic, setTopic] = useState(() => (read() || {}).topic || '');
+  const [subject, setSubject] = useState(() => (read() || {}).subject || '');
+  const subjects = useSubjects();
   const [share, setShare] = useState(() => { try { return localStorage.getItem('learnr.share') === '1'; } catch { return false; } });
   const finishing = useRef(false);
   // Classmates only see you in the class study room if you choose to be seen (class mode + the box ticked).
@@ -61,6 +65,7 @@ export default function Focus() {
         classId: (timer.mode || mode) === 'class' ? (timer.classId || classId || null) : null,
         className: (timer.mode || mode) === 'class' ? (timer.className || (cls && cls.className) || '') : '',
         topic: (timer.topic || topic || '').slice(0, 80), createdAt: Date.now(),
+        subject: guessSubject({ subject: timer.subject || subject, mode: timer.mode || mode, className: timer.className || (cls && cls.className) || '', topic: timer.topic || topic }, subjects.list),
       });
       return true;
     } catch (e) { fail(e); return false; }
@@ -77,7 +82,7 @@ export default function Focus() {
       beep();
       const cycles = timer.phase === 'focus' ? (timer.cycles || 0) + 1 : timer.cycles || 0;
       const next = timer.phase === 'focus' ? (cycles % 4 === 0 ? 'long' : 'short') : 'focus';
-      setTimer({ phase: next, status: 'idle', cycles, mode, classId, topic });
+      setTimer({ phase: next, status: 'idle', cycles, mode, classId, topic, subject });
       toast(timer.phase === 'focus' ? 'Focus block done. Take a break.' : 'Break over. Ready when you are.');
       finishing.current = false;
     })();
@@ -93,7 +98,7 @@ export default function Focus() {
     const t = Date.now();
     const nt = {
       ...timer, status: 'running', startedAt: timer.status === 'paused' ? timer.startedAt : t, endsAt: t + leftMs,
-      mode, classId: mode === 'class' ? classId : '', className: cls ? cls.className : '', topic: topic.trim(),
+      mode, classId: mode === 'class' ? classId : '', className: cls ? cls.className : '', topic: topic.trim(), subject,
     };
     setTimer(nt);
     if (timer.phase === 'focus') presenceOn(nt);
@@ -108,9 +113,9 @@ export default function Focus() {
       const elapsed = (totalMs - leftMs) / 1000;
       if (await saveSession(elapsed, timer.startedAt, false)) toast(elapsed >= 60 ? `Saved ${plural(Math.round(elapsed / 60), 'minute')} of study.` : 'Stopped.');
     }
-    setTimer({ phase: timer.phase, status: 'idle', cycles: timer.cycles || 0, mode, classId, topic });
+    setTimer({ phase: timer.phase, status: 'idle', cycles: timer.cycles || 0, mode, classId, topic, subject });
   };
-  const skipTo = (phase) => setTimer({ phase, status: 'idle', cycles: timer.cycles || 0, mode, classId, topic });
+  const skipTo = (phase) => setTimer({ phase, status: 'idle', cycles: timer.cycles || 0, mode, classId, topic, subject });
 
   const changeSetting = (k) => (e) => {
     const next = { ...settings, [k]: Math.max(1, Math.min(180, Number(e.target.value) || 1)) };
@@ -152,6 +157,11 @@ export default function Focus() {
         {mode === 'class' && classes.length > 0 && (
           <label className="row" style={{ gap: 10 }}><input type="checkbox" checked={share} disabled={!idle} onChange={(e) => { setShare(e.target.checked); try { localStorage.setItem('learnr.share', e.target.checked ? '1' : '0'); } catch { /* optional */ } }} /> Show me in the class study room while I focus (your first name and last initial)</label>
         )}
+        <SelectField label="Subject" value={subject} onChange={(e) => setSubject(e.target.value)} disabled={!idle}>
+          <option value="">Let Learnr fill it in</option>
+          {subjects.list.map((n) => <option key={n} value={n}>{n}</option>)}
+        </SelectField>
+        <details><summary className="muted">My subjects</summary><div style={{ marginTop: 12 }}><Subjects classes={classes} /></div></details>
         <TextField label="Topic (optional)" value={topic} onChange={(e) => setTopic(e.target.value)} maxLength={80} disabled={!idle} placeholder="For example: photosynthesis" autoComplete="off" />
         {!idle || <details>
           <summary className="muted">Timer lengths</summary>
@@ -198,7 +208,7 @@ export default function Focus() {
           {list.slice(0, 15).map((s) => (
             <div className="item-row" key={s.id}>
               <span className="grow">
-                <strong className="break">{s.topic || (s.mode === 'class' ? s.className : 'Studying on my own')}</strong>
+                <strong className="break">{[s.subject, s.topic].filter(Boolean).join(': ') || (s.mode === 'class' ? s.className : 'Studying on my own')}</strong>
                 <span className="muted small" style={{ display: 'block' }}>{fmtDateTime(s.startedAt)}{s.mode === 'class' && s.className ? `, ${s.className}` : ''}</span>
               </span>
               <Badge tone={s.completed ? 'ok' : ''}>{fmtMinutes(minutesOf(s))}{s.completed ? '' : ', stopped early'}</Badge>

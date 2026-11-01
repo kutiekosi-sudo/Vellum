@@ -30,6 +30,7 @@ const STUDENT = {
   '/classes': { title: 'Classes', Page: Classes },
   '/study': { title: 'Study', Page: StudyShell },
   '/study/learn': { title: 'Study', Page: StudyShell },
+  '/study/stats': { title: 'Study', Page: StudyShell },
   '/study/insights': { title: 'Study', Page: StudyShell },
   '/study/practice': { title: 'Study', Page: StudyShell },
   '/study/cards': { title: 'Study', Page: StudyShell },

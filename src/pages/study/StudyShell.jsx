@@ -5,10 +5,12 @@ import Practice from './Practice.jsx';
 import Cards from './Cards.jsx';
 import Learn from './Learn.jsx';
 import Insights from './Insights.jsx';
+import Stats from './Stats.jsx';
 
 const TABS = [
   { key: '', label: 'Timer', path: '/study' },
   { key: 'learn', label: 'Prove it', path: '/study/learn' },
+  { key: 'stats', label: 'Statistics', path: '/study/stats' },
   { key: 'insights', label: 'Insights', path: '/study/insights' },
   { key: 'practice', label: 'Practice', path: '/study/practice' },
   { key: 'cards', label: 'Cards', path: '/study/cards' },
@@ -25,6 +27,7 @@ export default function StudyShell({ route }) {
       </nav>
       {key === '' && <Focus />}
       {key === 'learn' && <Learn />}
+      {key === 'stats' && <Stats />}
       {key === 'insights' && <Insights />}
       {key === 'practice' && <Practice />}
       {key === 'cards' && <Cards />}
