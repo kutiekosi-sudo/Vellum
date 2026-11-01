@@ -5,6 +5,7 @@ import { db } from '../../backend/index.js';
 import { PHASES, summarize, beep, minutesOf } from '../../lib/study.js';
 import { fmtClock, fmtDateTime, fmtMinutes, plural, shortName } from '../../lib/util.js';
 import { pushState } from '../../lib/pods.js';
+import { navigate } from '../../lib/router.js';
 import { guessSubject } from '../../lib/subjects.js';
 import Subjects, { useSubjects } from './Subjects.jsx';
 import { Badge, Button, Card, Empty, Progress, SectionTitle, SelectField, Seg, TextField } from '../../ui/kit.jsx';
@@ -32,6 +33,7 @@ export default function Focus() {
   const subjects = useSubjects();
   const [share, setShare] = useState(() => { try { return localStorage.getItem('learnr.share') === '1'; } catch { return false; } });
   const finishing = useRef(false);
+  useEffect(() => { window.__studyPageOpen = true; return () => { window.__studyPageOpen = false; }; }, []);
   // Classmates only see you in the class study room if you choose to be seen (class mode + the box ticked).
   const presenceOn = (t) => {
     if (!(share && (t.mode || mode) === 'class' && (t.classId || classId))) return;
@@ -103,6 +105,8 @@ export default function Focus() {
     setTimer(nt);
     if (timer.phase === 'focus') presenceOn(nt);
     tell(timer.phase === 'focus' ? 'studying' : 'break', nt.endsAt);
+    // Studying with friends: open the pod (or the list of pods when there are several).
+    if (timer.phase === 'focus' && podIds.length) { try { sessionStorage.setItem('learnr.openPod', podIds.length === 1 ? podIds[0] : ''); } catch { /* optional */ } navigate('/pod'); }
   };
   const pause = () => { presenceOff(timer); tell('break', 0, sum.today + Math.round((totalMs - Math.max(0, timer.endsAt - Date.now())) / 60000)); setTimer({ ...timer, status: 'paused', remainingMs: Math.max(0, timer.endsAt - Date.now()) }); };
   const stop = async () => {

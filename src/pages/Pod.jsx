@@ -265,7 +265,7 @@ function Pods({ onImmersive }) {
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState('');
   const list = (mine.data || []).sort((a, b) => (a.joinedAt || 0) - (b.joinedAt || 0));
-  const [openId, setOpenId] = useState('');
+  const [openId, setOpenId] = useState(() => { try { const v = sessionStorage.getItem('learnr.openPod') || ''; sessionStorage.removeItem('learnr.openPod'); return v; } catch { return ''; } });
   const synced = useRef(new Set());
   useEffect(() => {
     // Keep my own numbers fresh in every pod I belong to, even if I only look at the list.

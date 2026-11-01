@@ -6,6 +6,7 @@ import { useLive, useTitle } from './lib/hooks.js';
 import { Icon } from './ui/icons.jsx';
 import { Avatar, Empty, Button } from './ui/kit.jsx';
 import { routeFor } from './routes.jsx';
+import TimerKeeper from './lib/timerKeeper.jsx';
 
 const STUDENT_NAV = [
   { to: '/', label: 'Home', icon: 'home' },
@@ -40,6 +41,7 @@ export default function Shell() {
   const Page = match.Page;
   return (
     <div className="app">
+      <TimerKeeper />
       <a href="#main" className="skip" onClick={(e) => { e.preventDefault(); main.current && main.current.focus(); }}>Skip to content</a>
       <aside className="sidebar" aria-label="Main">
         <div className="wordmark">Learnr</div>
