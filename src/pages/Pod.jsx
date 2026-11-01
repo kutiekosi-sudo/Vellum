@@ -4,7 +4,7 @@ import { useLive, useNow } from '../lib/hooks.js';
 import StudentIcon, { DEFAULT_ICON, ICON_COLORS, ICON_STYLES, SKIN_TONES, HEAT_FIRE_MIN, HEAT_WAVES_MIN } from '../ui/StudentIcon.jsx';
 import { db } from '../backend/index.js';
 import { createPod, joinPod, leavePod, closePod, syncMyStats } from '../lib/pods.js';
-import { fmtDate, fmtMinutes, plural, relative, shortName } from '../lib/util.js';
+import { CLASS_COLORS, fmtDate, fmtMinutes, plural, relative, shortName } from '../lib/util.js';
 import { Badge, Button, Card, CopyButton, Empty, Notice, PageHead, PageSkeleton, Seg, TextArea, TextField, useConfirm } from '../ui/kit.jsx';
 
 const stateOf = (x, now) => (x.state === 'studying' || x.state === 'break') && x.stateEndsAt > now ? x.state : (x.state === 'break' && !x.stateEndsAt && x.stateSince > now - 15 * 60000 ? 'break' : 'idle');
@@ -41,6 +41,44 @@ function IconEditor({ onClose }) {
   );
 }
 
+const PRESETS = [{ m: 30, l: '30 min' }, { m: 60, l: '1 hour' }, { m: 120, l: '2 hours' }, { m: 180, l: '3 hours' }, { m: 300, l: '5 hours' }];
+
+function Countdown({ podId, now }) {
+  const { user, profile, fail } = useApp();
+  const doc = useLive(`pods/${podId}/state/countdown`);
+  const [custom, setCustom] = useState('');
+  const c = doc.data;
+  const live = c && c.active && c.endsAt > now;
+  const set = async (minutes) => {
+    if (!(minutes >= 5 && minutes <= 720)) return;
+    const t = Date.now();
+    try { await db.set(`pods/${podId}/state/countdown`, { minutes, startedAt: t, endsAt: t + minutes * 60000, by: shortName(profile.displayName), byUid: user.uid, active: true }); setCustom(''); } catch (e) { fail(e); }
+  };
+  const end = async () => { try { await db.set(`pods/${podId}/state/countdown`, { minutes: c.minutes, startedAt: c.startedAt, endsAt: c.endsAt, by: c.by || '', active: false, byUid: user.uid }); } catch (e) { fail(e); } };
+  if (live) {
+    const left = Math.ceil((c.endsAt - now) / 1000);
+    const h = Math.floor(left / 3600); const mm = Math.floor((left % 3600) / 60); const ss = left % 60;
+    const pad = (n) => String(n).padStart(2, '0');
+    return (
+      <div className="stack sm" style={{ textAlign: 'center', padding: '8px 0' }}>
+        <span className="muted small">{c.by || 'Someone'} started a {fmtMinutes(c.minutes)} group session</span>
+        <strong role="timer" style={{ fontSize: 40, fontVariantNumeric: 'tabular-nums', color: 'var(--accent)' }}>{h ? `${h}:` : ''}{pad(mm)}:{pad(ss)}</strong>
+        <div><Button size="sm" variant="ghost" onClick={end}>End countdown</Button></div>
+      </div>
+    );
+  }
+  return (
+    <div className="stack sm">
+      <span className="muted small">Group countdown: agree to study together for a set time</span>
+      <div className="row wrap">
+        {PRESETS.map((x) => <Button key={x.m} size="sm" variant="ghost" onClick={() => set(x.m)}>{x.l}</Button>)}
+        <input className="input" style={{ width: 90 }} type="number" inputMode="numeric" min="5" max="720" placeholder="Minutes" aria-label="Custom minutes" value={custom} onChange={(e) => setCustom(e.target.value)} />
+        <Button size="sm" disabled={!(Number(custom) >= 5)} onClick={() => set(Math.round(Number(custom)))}>Start</Button>
+      </div>
+    </div>
+  );
+}
+
 function SpaceView({ m, list, now, user }) {
   const { profile } = useApp();
   const [editing, setEditing] = useState(false);
@@ -73,6 +111,18 @@ function SpaceView({ m, list, now, user }) {
         );
       })}
       <p className="muted small">Study for 2 hours today and your student heats up. Reach 5 hours and it catches fire. A grey student is on a break.</p>
+    </div>
+  );
+}
+
+const POD_ACCENTS = [...CLASS_COLORS.filter((c) => ['burgundy', 'teal', 'sage', 'blue', 'green', 'rose', 'plum', 'slate', 'clay', 'ochre'].includes(c.id)), { id: 'lavender', hex: '#8878C3', name: 'Lavender' }];
+
+function AccentPicker({ podId, current }) {
+  const { fail, toast } = useApp();
+  const pick = async (hex) => { try { await db.update(`pods/${podId}`, { accent: hex }); toast('Pod colour changed'); } catch (e) { fail(e); } };
+  return (
+    <div className="stack sm"><span className="muted small">Pod colour</span>
+      <div className="row wrap">{POD_ACCENTS.map((c) => <button key={c.id} type="button" title={c.name} aria-label={c.name} aria-pressed={current === c.hex} onClick={() => pick(c.hex)} style={{ width: 34, height: 34, borderRadius: 17, background: c.hex, border: current === c.hex ? '3px solid #1F2328' : '2px solid #fff', boxShadow: '0 0 0 1px #c9c9c2' }} />)}</div>
     </div>
   );
 }
@@ -148,7 +198,7 @@ function PodNotes({ m, isOwner }) {
 function PodView({ m, sessions }) {
   const { user, profile, fail, toast } = useApp();
   const confirm = useConfirm();
-  const now = useNow(30000);
+  const now = useNow(1000);
   const pod = useLive(`pods/${m.podId}`);
   const members = useLive(`pods/${m.podId}/members`);
   const [tab, setTab] = useState('space');
@@ -182,14 +232,17 @@ function PodView({ m, sessions }) {
       <Card className="stack sm"><strong>{m.name}</strong><p className="muted">This pod was closed by its owner.</p><div><Button variant="ghost" size="sm" onClick={() => db.del(`users/${user.uid}/podMemberships/${m.podId}`).catch(fail)}>Remove from my list</Button></div></Card>
     );
   }
+  const accent = (pod.data && pod.data.accent) || '';
   return (
-    <Card className="stack">
-      <div className="row between wrap"><h3 className="break">{m.name}</h3><div className="row"><Badge>{m.code}</Badge><CopyButton text={m.code} /></div></div>
+    <Card className="stack" style={accent ? { '--accent': accent, '--brand': accent, '--brand-deep': `color-mix(in srgb, ${accent} 80%, black)`, '--accent-soft': `color-mix(in srgb, ${accent} 14%, #fff)`, '--accent-line': `color-mix(in srgb, ${accent} 40%, #fff)`, '--accent-deep': `color-mix(in srgb, ${accent} 80%, black)`, borderTop: `5px solid ${accent}` } : undefined}>
+      <div className="row between wrap"><h3 className="break" style={accent ? { color: accent } : undefined}>{m.name}</h3><div className="row"><Badge>{m.code}</Badge><CopyButton text={m.code} /></div></div>
       <Seg label={`${m.name} sections`} value={tab} onChange={setTab} options={[{ value: 'space', label: 'Space' }, { value: 'chat', label: 'Chat' }, { value: 'notes', label: 'Notes' }, { value: 'board', label: 'This week' }]} />
       {members.loading ? <PageSkeleton rows={1} /> : tab === 'space' ? (
         <>
           {others === 0 && <p className="muted">Share the pod name <strong>{m.name}</strong> and code <strong>{m.code}</strong> with friends. They need both to join.</p>}
+          <Countdown podId={m.podId} now={now} />
           <SpaceView m={m} list={list} now={now} user={user} />
+          {m.owner && <AccentPicker podId={m.podId} current={accent} />}
         </>
       ) : tab === 'chat' ? <PodChat m={m} isOwner={m.owner} /> : tab === 'notes' ? <PodNotes m={m} isOwner={m.owner} /> : (
         <>

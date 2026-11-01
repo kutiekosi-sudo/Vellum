@@ -75,7 +75,7 @@ function checkRead(kind, path, opts, data) {
       if (!pod || !(pod.ownerUid === U() || podMember(p, U()))) throw denied();
       return;
     }
-    if (s[2] === 'members' || s[2] === 'messages' || s[2] === 'notes') { if (!(podMember(p, U()) || (pod && pod.ownerUid === U()))) throw denied(); return; }
+    if (s[2] === 'members' || s[2] === 'messages' || s[2] === 'notes' || s[2] === 'state') { if (!(podMember(p, U()) || (pod && pod.ownerUid === U()))) throw denied(); return; }
   }
   throw denied();
 }
@@ -171,6 +171,11 @@ function checkWrite(op, path, data, existing) {
   if (s[0] === 'pods' && s.length === 2) {
     if (op === 'create' && data.ownerUid === U()) return;
     if (existing && existing.ownerUid === U()) return;
+    throw denied();
+  }
+  if (s[0] === 'pods' && s[2] === 'state') {
+    const p = s[1]; const pod = mem.get('pods/' + p) || {};
+    if ((op === 'create' || op === 'update') && s[3] === 'countdown' && (podMember(p, U()) || pod.ownerUid === U()) && data.byUid === U() && typeof data.minutes === 'number' && data.minutes >= 5 && data.minutes <= 720 && Object.keys(data).every((k) => ['minutes', 'startedAt', 'endsAt', 'by', 'byUid', 'active'].includes(k))) return;
     throw denied();
   }
   if (s[0] === 'pods' && (s[2] === 'messages' || s[2] === 'notes')) {

@@ -235,6 +235,16 @@ service cloud.firestore {
         allow delete: if signedIn() && (m == me() || isPodOwner(p));
       }
 
+      // One shared group countdown ("we study for 3 hours"). Any member can start or end it.
+      match /state/{d} {
+        allow read: if isPodMember(p) || isPodOwner(p);
+        allow create, update: if (isPodMember(p) || isPodOwner(p)) && d == 'countdown'
+          && request.resource.data.keys().hasOnly(['minutes', 'startedAt', 'endsAt', 'by', 'byUid', 'active'])
+          && request.resource.data.minutes is number && request.resource.data.minutes >= 5 && request.resource.data.minutes <= 720
+          && request.resource.data.byUid == me();
+        allow delete: if false;
+      }
+
       // Pod chat and shared notes: only people inside the pod can read or add.
       match /messages/{x} {
         allow read: if isPodMember(p) || isPodOwner(p);
