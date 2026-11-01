@@ -397,7 +397,7 @@ a.item-row:hover { background: var(--surface-2); }
 .pod-seat[data-state="break"] .nm, .pod-seat[data-state="break"] .tm, .pod-seat[data-state="idle"] .nm, .pod-seat[data-state="idle"] .tm { opacity: .45; }
 .student-icon .dots circle { animation: dot-pulse 1.8s ease-in-out infinite; }
 .student-icon .dots circle:nth-child(even) { animation-delay: .6s; }
-.student-icon .flame { animation: flame-flicker .6s ease-in-out infinite alternate; transform-origin: 30px 19px; }
+.student-icon .flame { animation: flame-flicker .6s ease-in-out infinite alternate; }
 @keyframes dot-pulse { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
-@keyframes flame-flicker { from { transform: scale(1, 1) rotate(-2deg); } to { transform: scale(1.06, 1.12) rotate(2deg); } }
+@keyframes flame-flicker { from { opacity: 1; } to { opacity: .8; } }
 @media (prefers-reduced-motion: reduce) { .student-icon .dots circle, .student-icon .flame { animation: none; } }

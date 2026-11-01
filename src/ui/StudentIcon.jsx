@@ -17,8 +17,16 @@ export default function StudentIcon({ color = '#8E95E8', state = 'studying', min
         <rect x="12" y="56" width="6" height="16" rx="1" />
         <rect x="62" y="56" width="6" height="16" rx="1" />
       </g>
-      {/* lamp */}
-      {state !== 'break' && <g {...line}><path d="M52 50v-5" /><path d="M46 45h12" /><path d="M54 43l-6-15h9l3 9z" /></g>}
+      {/* desk lamp: stepped base, gooseneck stem, domed shade turned towards the desk */}
+      {state !== 'break' && (
+        <g {...line} strokeWidth="2.6">
+          <rect x="51" y="44" width="20" height="6" rx="2" />
+          <rect x="54.5" y="39" width="13" height="5" rx="2" />
+          <path d="M61 39V26c0-6-2-9-7-10" />
+          <circle cx="53" cy="14" r="3.2" />
+          <g transform="translate(46 20) rotate(28)"><path d="M-9 0a9 9 0 0 1 18 0z" /></g>
+        </g>
+      )}
       {state === 'break' && <g {...line}><circle cx="46" cy="32" r="12" /><path d="M46 25v7l5 3" /></g>}
       {studying && (
         <g {...line}>
@@ -34,9 +42,8 @@ export default function StudentIcon({ color = '#8E95E8', state = 'studying', min
         </g>
       )}
       {heat === 'fire' && (
-        <g className="flame" {...line} strokeWidth="2.6">
-          <path d="M30 17c-9-5-10-12-4-19 1 5 5 6 6 2 5 4 6 11-2 17z" transform="translate(0 2)" />
-          <path d="M30 14c-3-2-3-5 0-9 3 3 3 6 0 9z" transform="translate(0 2)" />
+        <g className="flame" transform="translate(23.6 1.8) scale(.12)" fill={color} stroke="none">
+          <path fillRule="evenodd" d="M52 0C62 18 78 32 84 56C86 50 89 44 92 38C97 70 94 104 70 126C55 138 30 135 18 112C8 90 10 65 20 50C17 47 15 44 14 42C22 44 26 48 28 56C30 40 44 20 52 0ZM50 62C62 80 68 96 66 112C60 122 40 124 34 112C30 100 36 88 40 84C42 90 44 92 46 90C44 80 46 68 50 62Z" />
         </g>
       )}
     </svg>
