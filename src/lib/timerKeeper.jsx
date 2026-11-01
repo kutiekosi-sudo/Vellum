@@ -50,3 +50,49 @@ export default function TimerKeeper() {
   });
   return null;
 }
+
+// Timer controls for places other than the Study page (the pod). They work on the same saved timer.
+export function useTimerControls() {
+  const { user, toast, fail } = useApp();
+  const now = useNow(500);
+  const t = read();
+  const podIds = async () => (await db.list(`users/${user.uid}/podMemberships`).catch(() => [])).map((x) => x.podId);
+  const total = t ? (lengths()[t.phase] || PHASES[t.phase].defaultMin) * 60000 : 0;
+  const leftMs = !t ? 0 : t.status === 'running' ? Math.max(0, t.endsAt - now) : t.status === 'paused' ? t.remainingMs : total;
+  const todayMin = async () => summarize(await db.list(`users/${user.uid}/studySessions`).catch(() => [])).today;
+  const pause = async () => {
+    const c = read(); if (!c || c.status !== 'running') return;
+    write({ ...c, status: 'paused', remainingMs: Math.max(0, c.endsAt - Date.now()) });
+    if (c.classId) db.del(`classes/${c.classId}/presence/${user.uid}`).catch(() => {});
+    const elapsed = Math.round(((lengths()[c.phase] || 25) * 60000 - Math.max(0, c.endsAt - Date.now())) / 60000);
+    pushState(user, await podIds(), { state: 'break', stateSince: Date.now(), stateEndsAt: 0, todayMin: (await todayMin()) + (c.phase === 'focus' ? elapsed : 0), todayDay: new Date().toDateString() });
+  };
+  const resume = async () => {
+    const c = read(); if (!c || c.status !== 'paused') return;
+    const n = Date.now(); const next = { ...c, status: 'running', endsAt: n + c.remainingMs };
+    write(next);
+    pushState(user, await podIds(), { state: c.phase === 'focus' ? 'studying' : 'break', stateSince: n, stateEndsAt: next.endsAt, todayMin: await todayMin(), todayDay: new Date().toDateString() });
+  };
+  const stop = async () => {
+    const c = read(); if (!c || c.status === 'idle') return;
+    const left = c.status === 'running' ? Math.max(0, c.endsAt - Date.now()) : c.remainingMs;
+    const full = (lengths()[c.phase] || PHASES[c.phase].defaultMin) * 60000;
+    const elapsed = (full - left) / 1000;
+    write({ phase: c.phase, status: 'idle', cycles: c.cycles || 0, mode: c.mode, classId: c.classId, topic: c.topic, subject: c.subject });
+    if (c.classId) db.del(`classes/${c.classId}/presence/${user.uid}`).catch(() => {});
+    try {
+      if (c.phase === 'focus' && elapsed >= 60) {
+        const saved = await db.get(SUBJECTS_PATH(user.uid)).catch(() => null);
+        await db.add(`users/${user.uid}/studySessions`, {
+          startedAt: c.startedAt, durationSec: Math.round(elapsed), completed: false, mode: c.mode || 'solo',
+          classId: c.mode === 'class' ? (c.classId || null) : null, className: c.mode === 'class' ? (c.className || '') : '',
+          topic: (c.topic || '').slice(0, 80), createdAt: Date.now(),
+          subject: guessSubject({ subject: c.subject, mode: c.mode, className: c.className, topic: c.topic }, (saved && saved.list) || []),
+        });
+        toast(`Saved ${Math.round(elapsed / 60)} minutes of study.`);
+      }
+      pushState(user, await podIds(), { state: 'idle', stateSince: Date.now(), stateEndsAt: 0, todayMin: await todayMin(), todayDay: new Date().toDateString() });
+    } catch (e) { fail(e); }
+  };
+  return { timer: t && t.status !== 'idle' ? t : null, leftSec: Math.ceil(leftMs / 1000), pause, resume, stop };
+}

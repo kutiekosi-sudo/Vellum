@@ -423,3 +423,5 @@ button.stats-cell { cursor: pointer; }
 .stats-cell[data-sel="1"] { outline: 2px solid #1F2328; outline-offset: -2px; }
 .stats-key { width: 18px; height: 12px; border-radius: 3px; background: color-mix(in srgb, var(--accent, #1F5C4D) var(--p), #fff); }
 .stats-key[style*="--p: 0%"] { background: var(--surface-2, #EEEDE6); }
+
+.pod-timer { display: flex; align-items: center; justify-content: center; gap: 6px; color: var(--seat); font-size: 20px; margin-top: 4px; font-variant-numeric: tabular-nums; }

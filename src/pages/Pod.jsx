@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useApp } from '../lib/store.jsx';
 import { useLive, useNow } from '../lib/hooks.js';
 import StudentIcon from '../ui/StudentIcon.jsx';
+import { useTimerControls } from '../lib/timerKeeper.jsx';
 import { db } from '../backend/index.js';
 import { createPod, joinPod, leavePod, closePod, syncMyStats, pushState } from '../lib/pods.js';
 import { CLASS_COLORS, fmtDate, fmtMinutes, plural, relative, shortName } from '../lib/util.js';
@@ -86,6 +87,22 @@ function ThemePicker({ podId, current }) {
 const DEFAULT_THEME = { bg: '#ECE9DF', fg: '#1F5C4D' };
 const IconBtn = ({ label, onClick, children, ...rest }) => <button type="button" className="pod-iconbtn" aria-label={label} title={label} onClick={onClick} {...rest}>{children}</button>;
 
+function PodTimer() {
+  const { timer, leftSec, pause, resume, stop } = useTimerControls();
+  if (!timer) return null;
+  const mm = String(Math.floor(leftSec / 60)).padStart(2, '0'); const ss = String(leftSec % 60).padStart(2, '0');
+  const glyph = (d, fill) => <svg width="20" height="20" viewBox="0 0 24 24" fill={fill ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{d}</svg>;
+  return (
+    <div className="pod-timer" role="group" aria-label="My study timer">
+      <strong role="timer" aria-label={`${mm} minutes ${ss} seconds left`}>{mm}:{ss}</strong>
+      {timer.status === 'running'
+        ? <IconBtn label="Pause" onClick={pause}>{glyph(<><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></>, true)}</IconBtn>
+        : <IconBtn label="Resume" onClick={resume}>{glyph(<path d="M7 4l13 8-13 8z" />, true)}</IconBtn>}
+      <IconBtn label="Stop and save" onClick={stop}>{glyph(<rect x="6" y="6" width="12" height="12" rx="2" />, true)}</IconBtn>
+    </div>
+  );
+}
+
 function SpaceView({ list, now, user, theme, onBack, onMenu, menuOpen, menu, countdown }) {
   const rows = list.map((x) => {
     const st = stateOf(x, now);
@@ -102,6 +119,7 @@ function SpaceView({ list, now, user, theme, onBack, onMenu, menuOpen, menu, cou
         <IconBtn label="Pod menu" onClick={onMenu} aria-expanded={menuOpen}><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" /></svg></IconBtn>
       </div>
       {menuOpen && menu}
+      <PodTimer />
       <div className="pod-space">
         {rows.map(({ x, st, sec, min }) => (
           <div key={x.id} className="pod-seat" data-state={st}>
