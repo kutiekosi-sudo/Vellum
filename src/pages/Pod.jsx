@@ -212,8 +212,8 @@ function PodView({ m, sessions }) {
   }
   return (
     <Card className="stack">
-      <div className="row between wrap"><h3 className="break">{m.name}</h3><div className="row"><Badge>{m.code}</Badge><CopyButton text={m.code} /></div></div>
-      <Seg label={`${m.name} sections`} value={tab} onChange={setTab} options={[{ value: 'space', label: 'Space' }, { value: 'chat', label: 'Chat' }, { value: 'notes', label: 'Notes' }, { value: 'board', label: 'This week' }, { value: 'settings', label: 'Settings' }]} />
+      <div className="row between wrap"><h3 className="break">{m.name}</h3><div className="row"><Badge>{m.code}</Badge><CopyButton text={m.code} /><Button size="sm" variant={tab === 'settings' ? 'primary' : 'ghost'} icon="settings" onClick={() => setTab(tab === 'settings' ? 'space' : 'settings')}>Settings</Button></div></div>
+      <Seg label={`${m.name} sections`} value={tab} onChange={setTab} options={[{ value: 'space', label: 'Space' }, { value: 'chat', label: 'Chat' }, { value: 'notes', label: 'Notes' }, { value: 'board', label: 'Week' }]} />
       {members.loading ? <PageSkeleton rows={1} /> : tab === 'space' ? (
         <>
           <Countdown podId={m.podId} now={now} mode="display" />
