@@ -140,6 +140,31 @@ export default function Stats() {
         <Card className="stack"><h3>By subject</h3><Bars rows={split(list)} total={total || 1} /></Card>
       </>
     );
+  } else if (view === 'all') {
+    const total = sum(rows); const months = new Map();
+    for (const s of rows) { const k = monthStart(s.startedAt || 0); months.set(k, (months.get(k) || 0) + (Number(s.durationSec) || 0)); }
+    const list = [...months.entries()].sort((a, b) => b[0] - a[0]); const maxM = Math.max(1, ...list.map((x) => x[1]));
+    const first = rows.length ? Math.min(...rows.map((s) => s.startedAt || Infinity)) : 0;
+    body = (
+      <>
+        <div className="grid cols-2">
+          <Card className="stack sm"><div className="muted small">All time</div><strong style={{ fontSize: 26 }}>{word(total)}</strong></Card>
+          <Card className="stack sm"><div className="muted small">Days studied</div><strong style={{ fontSize: 26 }}>{byDay.size}</strong></Card>
+          <Card className="stack sm"><div className="muted small">Sessions</div><strong style={{ fontSize: 26 }}>{rows.length}</strong></Card>
+          <Card className="stack sm"><div className="muted small">Since</div><strong style={{ fontSize: 22 }}>{first ? new Date(first).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}</strong></Card>
+        </div>
+        <Card className="stack"><h3>Month by month</h3>
+          {list.length === 0 ? <p className="muted">No study time yet.</p> : list.map(([t, sec]) => (
+            <div key={t} className="stack" style={{ gap: 4 }}>
+              <div className="row between"><strong>{new Date(t).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</strong><span className="muted small">{word(sec)}</span></div>
+              <div style={{ height: 10, borderRadius: 6, background: 'var(--surface-2, #EEEDE6)' }}><div style={{ width: `${Math.max(3, (sec / maxM) * 100)}%`, height: '100%', borderRadius: 6, background: 'var(--accent, #1F5C4D)' }} /></div>
+            </div>
+          ))}
+        </Card>
+        <Card className="stack"><h3>By subject</h3><Bars rows={split(rows)} total={total || 1} /></Card>
+        <p className="muted small">Your statistics are kept for as long as you use Learnr. Nothing resets at the end of a month.</p>
+      </>
+    );
   } else {
     const end = addMonths(month, 1); const list = inRange(month, end); const total = sum(list);
     const dayTotals = [...byDay.entries()].filter(([k]) => { const t = new Date(k + 'T00:00:00').getTime(); return t >= month && t < end; });
@@ -161,7 +186,7 @@ export default function Stats() {
   if (!all.length) return <Empty art="chart" title="No study time yet" text="Start the timer on the Timer tab. Every session of a minute or more shows up here, by day, week and month, split by subject." />;
   return (
     <div className="stack lg">
-      <Seg label="Period" value={view} onChange={setView} options={[{ value: 'day', label: 'Day' }, { value: 'week', label: 'Week' }, { value: 'month', label: 'Month' }]} />
+      <Seg label="Period" value={view} onChange={setView} options={[{ value: 'day', label: 'Day' }, { value: 'week', label: 'Week' }, { value: 'month', label: 'Month' }, { value: 'all', label: 'All time' }]} />
       {filter}
       {body}
     </div>
