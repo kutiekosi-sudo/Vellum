@@ -12,6 +12,7 @@ import Room from './class/Room.jsx';
 import { StudentCbt, StudentCbts } from './class/CbtStudent.jsx';
 import CbtEditor from './class/CbtEditor.jsx';
 import People from './class/People.jsx';
+import Analytics from './class/Analytics.jsx';
 
 export default function ClassPage({ route }) {
   const { user, role } = useApp();
@@ -27,7 +28,7 @@ export default function ClassPage({ route }) {
   if (!cls.data) return <Empty art="search" title="Class not found" text="It may have been removed.">{back}</Empty>;
   const c = cls.data;
   const isOwner = role === 'teacher' && c.teacherId === user.uid;
-  const tabs = [{ key: 'stream', label: 'Stream' }, { key: 'classwork', label: 'Classwork' }, { key: 'cbts', label: 'CBTs' }, { key: 'room', label: 'Study room' }, { key: 'resources', label: 'Resources' }, ...(isOwner ? [{ key: 'people', label: 'People' }] : [])];
+  const tabs = [{ key: 'stream', label: 'Stream' }, { key: 'classwork', label: 'Classwork' }, { key: 'cbts', label: 'CBTs' }, { key: 'room', label: 'Study room' }, { key: 'resources', label: 'Resources' }, ...(isOwner ? [{ key: 'analytics', label: 'Analytics' }, { key: 'people', label: 'People' }] : [])];
   const tab = tabs.some((t) => t.key === route.parts[2]) ? route.parts[2] : 'stream';
   const cls0 = { ...c, id };
   return (
@@ -55,6 +56,7 @@ export default function ClassPage({ route }) {
       {tab === 'cbts' && (isOwner ? (route.parts[3] ? <CbtEditor cls={cls0} tid={route.parts[3]} /> : <Cbts cls={cls0} />) : (route.parts[3] ? <StudentCbt cls={cls0} tid={route.parts[3]} /> : <StudentCbts cls={cls0} />))}
       {tab === 'room' && <Room cls={cls0} isOwner={isOwner} />}
       {tab === 'resources' && <Resources cls={cls0} isOwner={isOwner} />}
+      {tab === 'analytics' && isOwner && <Analytics cls={cls0} />}
       {tab === 'people' && isOwner && <People cls={cls0} />}
     </div>
   );
