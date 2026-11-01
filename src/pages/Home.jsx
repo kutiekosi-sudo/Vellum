@@ -5,6 +5,7 @@ import { href } from '../lib/router.js';
 import { summarize } from '../lib/study.js';
 import { cbt } from '../lib/api.js';
 import { dueLabel, firstName, plural } from '../lib/util.js';
+import { TeachingToday } from './Calendar.jsx';
 import { Badge, Button, Card, Empty, PageHead, Progress, SectionTitle, Skeleton, TeacherQuote } from '../ui/kit.jsx';
 import { Icon } from '../ui/icons.jsx';
 
@@ -136,6 +137,7 @@ function TeacherHome() {
   return (
     <div className="stack lg">
       <PageHead title={`${greeting()}${firstName(profile.displayName) ? ', ' + firstName(profile.displayName) : ''}`} sub="Here is where your classes stand." />
+      <TeachingToday compact />
       <TeacherQuote />
       {list.loading ? <Skeleton h={90} /> : classes.length === 0 ? (
         <Empty art="classroom" title="No classes yet" text="Create your first class and share its code with your students."><a className="btn" href={href('/classes')}>Go to classes</a></Empty>

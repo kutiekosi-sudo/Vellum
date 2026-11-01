@@ -9,6 +9,7 @@ import Pod from './pages/Pod.jsx';
 import Coach from './pages/Coach.jsx';
 import Home from './pages/Home.jsx';
 import StudyShell from './pages/study/StudyShell.jsx';
+import Calendar from './pages/Calendar.jsx';
 
 function Soon({ title, art = 'desk' }) {
   return (
@@ -41,6 +42,7 @@ const STUDENT = {
 const TEACHER = {
   '/': { title: 'Home', Page: Home },
   '/classes': { title: 'Classes', Page: Classes },
+  '/calendar': { title: 'Calendar', Page: Calendar },
   '/coach': { title: 'Coach', Page: soon('Coach', 'coach') },
   ...SHARED,
 };

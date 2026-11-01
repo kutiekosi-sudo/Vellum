@@ -18,6 +18,7 @@ const STUDENT_NAV = [
 const TEACHER_NAV = [
   { to: '/', label: 'Home', icon: 'home' },
   { to: '/classes', label: 'Classes', icon: 'classes' },
+  { to: '/calendar', label: 'Calendar', icon: 'calendar' },
   { to: '/coach', label: 'Coach', icon: 'coach' },
   { to: '/profile', label: 'Profile', icon: 'user' },
 ];

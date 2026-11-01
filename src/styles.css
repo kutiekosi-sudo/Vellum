@@ -425,3 +425,10 @@ button.stats-cell { cursor: pointer; }
 .stats-key[style*="--p: 0%"] { background: var(--surface-2, #EEEDE6); }
 
 .pod-timer { display: flex; align-items: center; justify-content: center; gap: 6px; color: var(--seat); font-size: 20px; margin-top: 4px; font-variant-numeric: tabular-nums; }
+
+/* ---------- teacher calendar ---------- */
+.cal-cell { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 4px; min-height: 56px; padding: 6px 2px; border: 0; border-radius: 8px; font: inherit; font-size: 14px; color: #1F2328; cursor: pointer; }
+.cal-cell[data-today="1"] { font-weight: 800; box-shadow: inset 0 0 0 2px #1F2328; }
+.cal-cell[data-sel="1"] { outline: 3px solid #1F2328; outline-offset: -1px; }
+.cal-dots { display: flex; gap: 3px; min-height: 8px; }
+.cal-dots i { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }

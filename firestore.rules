@@ -75,7 +75,7 @@ service cloud.firestore {
       // Private per-user collections.
       match /{coll}/{docId} {
         allow read, write: if signedIn() && me() == u
-          && coll in ['memberships', 'studySessions', 'goals', 'flashcards', 'practice', 'topics', 'aiChats', 'podMemberships'];
+          && coll in ['memberships', 'studySessions', 'goals', 'flashcards', 'practice', 'topics', 'aiChats', 'podMemberships', 'calendar'];
       }
 
       match /notifications/{n} {
