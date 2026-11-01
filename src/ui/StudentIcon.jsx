@@ -1,54 +1,42 @@
-// A thin line-drawing of a student at a desk. Studying: the student bends over the desk beside a lamp.
-// Break: a clock sits on the desk. Away: an empty desk with the lamp. Two hours of study today adds wavy
-// lines above the head, five hours puts a flame there. Break and away are drawn in grey.
-export const ICON_VARIANTS = [
-  { id: 'plain', label: 'Plain' },
-  { id: 'bun', label: 'Bun' },
-  { id: 'cap', label: 'Cap' },
-  { id: 'band', label: 'Headband' },
-  { id: 'glasses', label: 'Glasses' },
-];
-export const ICON_COLORS = ['#7C83D6', '#C2457F', '#2B8A87', '#7D2E3F', '#4F8A68', '#B98322', '#8878C3', '#3D77A8'];
-export const DEFAULT_ICON = { variant: 'plain', color: '#7C83D6' };
+// Line icons in one colour, like a study-room board: a student at a desk with a lamp (studying), a desk with a clock
+// (break), an empty desk with a lamp (away). Two hours of study today adds a few dotted marks beside the head,
+// five hours adds a flame outline above it. Everything is drawn in the single colour passed in; break and away fade.
 export const HEAT_WAVES_MIN = 120;
 export const HEAT_FIRE_MIN = 300;
-const GREY = '#8F959B';
 
-export default function StudentIcon({ icon = DEFAULT_ICON, state = 'studying', minutes = 0, size = 72, label }) {
-  const { variant, color } = { ...DEFAULT_ICON, ...(icon || {}) };
+export default function StudentIcon({ color = '#8E95E8', state = 'studying', minutes = 0, size = 72, label }) {
   const studying = state === 'studying';
-  const c = studying ? color : GREY;
-  const heat = studying ? (minutes >= HEAT_FIRE_MIN ? 'fire' : minutes >= HEAT_WAVES_MIN ? 'waves' : '') : '';
-  const line = { fill: 'none', stroke: c, strokeWidth: 2.4, strokeLinecap: 'round', strokeLinejoin: 'round' };
+  const heat = studying ? (minutes >= HEAT_FIRE_MIN ? 'fire' : minutes >= HEAT_WAVES_MIN ? 'dots' : '') : '';
+  const line = { fill: 'none', stroke: color, strokeWidth: 3, strokeLinecap: 'round', strokeLinejoin: 'round' };
   return (
-    <svg className={`student-icon is-${state}`} width={size} height={size} viewBox="0 0 80 80" role="img" style={{ overflow: 'visible' }}
-      aria-label={label || (studying ? `Studying${heat === 'fire' ? ', on fire after five hours' : heat === 'waves' ? ', heating up after two hours' : ''}` : state === 'break' ? 'On a break' : 'Not studying')}>
-      {/* desk */}
+    <svg className={`student-icon is-${state}`} width={size} height={size} viewBox="0 0 80 80" role="img" style={{ overflow: 'visible', opacity: studying ? 1 : 0.42 }}
+      aria-label={label || (studying ? `Studying${heat === 'fire' ? ', five hours today' : heat === 'dots' ? ', two hours today' : ''}` : state === 'break' ? 'On a break' : 'Not studying')}>
+      {/* desk: a bar with two legs */}
       <g {...line}>
-        <path d="M10 52h60" /><path d="M16 52v18M64 52v18" /><path d="M10 52v0" />
+        <rect x="8" y="50" width="64" height="6" rx="1.5" />
+        <rect x="12" y="56" width="6" height="16" rx="1" />
+        <rect x="62" y="56" width="6" height="16" rx="1" />
       </g>
       {/* lamp */}
-      {state !== 'break' && <g {...line}><path d="M56 52v-4M49 48h14" /><path d="M56 48l-4-14 10-2 2 8-8 8" /><path d="M52 34l10-2" /></g>}
-      {state === 'break' && <g {...line}><circle cx="52" cy="38" r="9" /><path d="M52 33v5l4 2" /><path d="M52 47v5" /></g>}
+      {state !== 'break' && <g {...line}><path d="M52 50v-5" /><path d="M46 45h12" /><path d="M54 43l-6-15h9l3 9z" /></g>}
+      {state === 'break' && <g {...line}><circle cx="46" cy="32" r="12" /><path d="M46 25v7l5 3" /></g>}
       {studying && (
         <g {...line}>
-          <circle cx="32" cy="30" r="7" />
-          <path d="M20 52v-5a12 12 0 0 1 24 0v5" />
-          {variant === 'bun' && <circle cx="32" cy="20" r="3.5" />}
-          {variant === 'cap' && <path d="M24 28a8 8 0 0 1 16 0z M39 28h8" />}
-          {variant === 'band' && <path d="M25.5 27c4 2.5 9 2.5 13 0" />}
-          {variant === 'glasses' && <><circle cx="29.5" cy="30" r="2.6" /><circle cx="35.5" cy="30" r="2.6" /></>}
+          <circle cx="30" cy="26" r="8" />
+          <path d="M22 24c5 2 11 2 16 0" />
+          <path d="M16 50v-4a14 14 0 0 1 28 0v4" />
         </g>
       )}
-      {heat === 'waves' && (
-        <g className="heat-waves" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round">
-          <path d="M24 16c-3-3 3-5 0-9" /><path d="M32 14c-3-3 3-5 0-9" /><path d="M40 16c-3-3 3-5 0-9" />
+      {heat === 'dots' && (
+        <g className="dots" fill={color} stroke="none">
+          <circle cx="14" cy="14" r="1.8" /><circle cx="20" cy="10" r="1.8" /><circle cx="8" cy="20" r="1.8" />
+          <circle cx="20" cy="17" r="1.8" /><circle cx="14" cy="21" r="1.8" /><circle cx="26" cy="12" r="1.8" />
         </g>
       )}
       {heat === 'fire' && (
-        <g className="flame">
-          <path d="M32 21c-8-5-9-12-3-19 1 5 5 5 6 1 4 4 5 11-3 18z" fill="#F2A33A" stroke="#D9622B" strokeWidth="1.6" strokeLinejoin="round" />
-          <path d="M32 19c-3-3-3-6-1-9 3 3 4 6 1 9z" fill="#FBD98B" />
+        <g className="flame" {...line} strokeWidth="2.6">
+          <path d="M30 17c-9-5-10-12-4-19 1 5 5 6 6 2 5 4 6 11-2 17z" transform="translate(0 2)" />
+          <path d="M30 14c-3-2-3-5 0-9 3 3 3 6 0 9z" transform="translate(0 2)" />
         </g>
       )}
     </svg>

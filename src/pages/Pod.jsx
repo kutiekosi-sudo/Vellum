@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useApp } from '../lib/store.jsx';
 import { useLive, useNow } from '../lib/hooks.js';
-import StudentIcon, { DEFAULT_ICON, ICON_COLORS, ICON_VARIANTS } from '../ui/StudentIcon.jsx';
+import StudentIcon from '../ui/StudentIcon.jsx';
 import { db } from '../backend/index.js';
 import { createPod, joinPod, leavePod, closePod, syncMyStats, pushState } from '../lib/pods.js';
 import { CLASS_COLORS, fmtDate, fmtMinutes, plural, relative, shortName } from '../lib/util.js';
@@ -12,30 +12,6 @@ const todayOf = (x, now) => {
   const base = x.todayDay === new Date(now).toDateString() ? (x.todayMin || 0) : 0;
   return stateOf(x, now) === 'studying' && x.stateSince ? base + Math.max(0, Math.floor((now - x.stateSince) / 60000)) : base;
 };
-
-function IconEditor({ onClose }) {
-  const { user, profile, patchProfile, fail, toast } = useApp();
-  const cur = { ...DEFAULT_ICON, ...((profile.settings && profile.settings.avatar) || {}) };
-  const [icon, setIcon] = useState(cur);
-  const [busy, setBusy] = useState(false);
-  const save = async () => {
-    setBusy(true);
-    try { await patchProfile({ settings: { ...(profile.settings || {}), avatar: icon } });
-      const ids = (await db.list(`users/${user.uid}/podMemberships`)).map((x) => x.podId);
-      await pushState(user, ids, { avatar: icon });
-      toast('Your icon is saved'); onClose(icon); } catch (e) { fail(e); } finally { setBusy(false); }
-  };
-  return (
-    <div className="stack">
-      <div className="row between wrap"><strong>Your icon</strong><StudentIcon icon={icon} state="studying" size={84} /></div>
-      <div className="stack sm"><span className="muted small">Look</span>
-        <div className="row wrap">{ICON_VARIANTS.map((v) => <Button key={v.id} size="sm" variant={icon.variant === v.id ? 'primary' : 'ghost'} onClick={() => setIcon({ ...icon, variant: v.id })}>{v.label}</Button>)}</div></div>
-      <div className="stack sm"><span className="muted small">Icon colour</span>
-        <div className="row wrap">{ICON_COLORS.map((c) => <button key={c} type="button" aria-label={`Icon colour ${c}`} aria-pressed={icon.color === c} onClick={() => setIcon({ ...icon, color: c })} style={{ width: 34, height: 34, borderRadius: 17, background: c, border: icon.color === c ? '3px solid #1F2328' : '2px solid #fff', boxShadow: '0 0 0 1px #c9c9c2' }} />)}</div></div>
-      <div className="row wrap"><Button loading={busy} onClick={save}>Save my icon</Button><Button variant="ghost" onClick={() => onClose(null)}>Cancel</Button></div>
-    </div>
-  );
-}
 
 const hms = (sec) => { sec = Math.max(0, Math.floor(sec)); const p = (n) => String(n).padStart(2, '0'); return `${Math.floor(sec / 3600)}:${p(Math.floor((sec % 3600) / 60))}:${p(sec % 60)}`; };
 const ORDER = { studying: 0, break: 1, idle: 2 };
@@ -78,44 +54,53 @@ function Countdown({ podId, now }) {
   );
 }
 
-function SpaceView({ list, now, user }) {
-  const { profile } = useApp();
-  const [editing, setEditing] = useState(false);
-  const myIcon = (profile.settings && profile.settings.avatar) || null;
+const HUES = [
+  { id: 'periwinkle', name: 'Periwinkle', h: 236, s: 62 }, { id: 'rose', name: 'Rose', h: 338, s: 55 }, { id: 'teal', name: 'Teal', h: 178, s: 50 },
+  { id: 'burgundy', name: 'Burgundy', h: 349, s: 55 }, { id: 'sage', name: 'Sage', h: 140, s: 25 }, { id: 'lavender', name: 'Lavender', h: 262, s: 50 },
+  { id: 'blue', name: 'Blue', h: 215, s: 65 }, { id: 'green', name: 'Green', h: 130, s: 45 }, { id: 'gold', name: 'Gold', h: 42, s: 60 }, { id: 'beige', name: 'Beige', h: 36, s: 28 },
+];
+const SHADE_L = [9, 20, 40, 78, 91];
+// Dark shades get light icons and text; light shades get dark ones.
+export const themeOf = (hue, i) => {
+  const l = SHADE_L[i]; const bg = `hsl(${hue.h} ${Math.max(10, hue.s - (l < 15 ? 20 : 0))}% ${l}%)`;
+  const fg = l < 50 ? `hsl(${hue.h} ${Math.min(90, hue.s + 20)}% 74%)` : `hsl(${hue.h} ${hue.s}% 24%)`;
+  return { hue: hue.id, shade: i, bg, fg };
+};
+
+function ThemePicker({ podId, current }) {
+  const { user, fail } = useApp();
+  const [open, setOpen] = useState(current && current.hue ? current.hue : '');
+  const save = async (t) => { try { await db.update(`users/${user.uid}/podMemberships/${podId}`, { theme: t }); } catch (e) { fail(e); } };
+  const hue = HUES.find((h) => h.id === open);
+  return (
+    <div className="stack sm"><span className="muted small">Colour theme for how you see this pod (only you see it)</span>
+      <div className="row wrap">{HUES.map((h) => <button key={h.id} type="button" title={h.name} aria-label={h.name} aria-pressed={open === h.id} onClick={() => setOpen(h.id)} style={{ width: 34, height: 34, borderRadius: 17, background: `hsl(${h.h} ${h.s}% 50%)`, border: open === h.id ? '3px solid #1F2328' : '2px solid #fff', boxShadow: '0 0 0 1px #c9c9c2' }} />)}</div>
+      {hue && <div className="row wrap" role="group" aria-label={`${hue.name} shades`}>{SHADE_L.map((_, i) => { const t = themeOf(hue, i); return <button key={i} type="button" aria-label={`${hue.name} shade ${i + 1}`} aria-pressed={current && current.hue === hue.id && current.shade === i} onClick={() => save(t)} style={{ width: 46, height: 34, borderRadius: 10, background: t.bg, border: current && current.hue === hue.id && current.shade === i ? '3px solid #1F2328' : '1px solid #c9c9c2', color: t.fg, fontWeight: 700 }}>A</button>; })}</div>}
+      {current && current.hue && <div><Button size="sm" variant="ghost" onClick={() => { setOpen(''); save({}); }}>Back to the default look</Button></div>}
+    </div>
+  );
+}
+
+function SpaceView({ list, now, user, theme }) {
   const rows = list.map((x) => {
     const st = stateOf(x, now);
     const base = (x.todayDay === new Date(now).toDateString() ? (x.todayMin || 0) : 0) * 60;
     const sec = st === 'studying' && x.stateSince ? base + Math.max(0, (now - x.stateSince) / 1000) : base;
     return { x, st, sec, min: sec / 60 };
   }).sort((a, b) => ORDER[a.st] - ORDER[b.st] || b.sec - a.sec);
+  const themed = theme && theme.bg;
   return (
     <div className="stack">
-      <div className="pod-space">
-        {rows.map(({ x, st, sec, min }) => {
-          const mine = (x.uid || x.id) === user.uid;
-          return (
-            <div key={x.id} className={`pod-seat${mine ? ' is-me' : ''}`} data-state={st}>
-              <StudentIcon icon={mine && myIcon ? myIcon : x.avatar} state={st} minutes={min} size={72} />
-              <span className="nm">{x.name || 'Student'}</span>
-              <span className="tm">{hms(sec)}</span>
-            </div>
-          );
-        })}
+      <div className={`pod-space${themed ? ' themed' : ''}`} style={themed ? { background: theme.bg, '--seat': theme.fg } : { '--seat': '#1F5C4D' }}>
+        {rows.map(({ x, st, sec, min }) => (
+          <div key={x.id} className="pod-seat" data-state={st}>
+            <StudentIcon color={themed ? theme.fg : '#1F5C4D'} state={st} minutes={min} size={72} />
+            <span className="nm">{x.name || 'Student'}</span>
+            <span className="tm">{hms(sec)}</span>
+          </div>
+        ))}
       </div>
-      {editing ? <IconEditor onClose={() => setEditing(false)} /> : <div><Button size="sm" variant="ghost" onClick={() => setEditing(true)}>Change my icon</Button></div>}
-      <p className="muted small">Study for 2 hours today and wavy heat lines rise above your head. Reach 5 hours and it catches fire. Grey means break or away. The time under each name is today's study time.</p>
-    </div>
-  );
-}
-
-const POD_ACCENTS = [...CLASS_COLORS.filter((c) => ['burgundy', 'teal', 'sage', 'blue', 'green', 'rose', 'plum', 'slate', 'clay', 'ochre'].includes(c.id)), { id: 'lavender', hex: '#8878C3', name: 'Lavender' }];
-
-function AccentPicker({ podId, current }) {
-  const { user, fail } = useApp();
-  const pick = async (hex) => { try { await db.update(`users/${user.uid}/podMemberships/${podId}`, { accent: hex }); } catch (e) { fail(e); } };
-  return (
-    <div className="stack sm"><span className="muted small">My colour for this pod (only you see it)</span>
-      <div className="row wrap">{POD_ACCENTS.map((c) => <button key={c.id} type="button" title={c.name} aria-label={c.name} aria-pressed={current === c.hex} onClick={() => pick(c.hex)} style={{ width: 34, height: 34, borderRadius: 17, background: c.hex, border: current === c.hex ? '3px solid #1F2328' : '2px solid #fff', boxShadow: '0 0 0 1px #c9c9c2' }} />)}</div>
+      <p className="muted small">Study for 2 hours today and dots appear beside your head. Reach 5 hours and a flame appears above it. A faded icon means a break or away. The time under each name is today's study time.</p>
     </div>
   );
 }
@@ -225,17 +210,16 @@ function PodView({ m, sessions }) {
       <Card className="stack sm"><strong>{m.name}</strong><p className="muted">This pod was closed by its owner.</p><div><Button variant="ghost" size="sm" onClick={() => db.del(`users/${user.uid}/podMemberships/${m.podId}`).catch(fail)}>Remove from my list</Button></div></Card>
     );
   }
-  const accent = m.accent || '';
   return (
-    <Card className="stack" style={accent ? { '--accent': accent, '--brand': accent, '--brand-deep': `color-mix(in srgb, ${accent} 80%, black)`, '--accent-soft': `color-mix(in srgb, ${accent} 14%, #fff)`, '--accent-line': `color-mix(in srgb, ${accent} 40%, #fff)`, '--accent-deep': `color-mix(in srgb, ${accent} 80%, black)`, borderTop: `5px solid ${accent}` } : undefined}>
-      <div className="row between wrap"><h3 className="break" style={accent ? { color: accent } : undefined}>{m.name}</h3><div className="row"><Badge>{m.code}</Badge><CopyButton text={m.code} /></div></div>
+    <Card className="stack">
+      <div className="row between wrap"><h3 className="break">{m.name}</h3><div className="row"><Badge>{m.code}</Badge><CopyButton text={m.code} /></div></div>
       <Seg label={`${m.name} sections`} value={tab} onChange={setTab} options={[{ value: 'space', label: 'Space' }, { value: 'chat', label: 'Chat' }, { value: 'notes', label: 'Notes' }, { value: 'board', label: 'This week' }]} />
       {members.loading ? <PageSkeleton rows={1} /> : tab === 'space' ? (
         <>
           {others === 0 && <p className="muted">Share the pod name <strong>{m.name}</strong> and code <strong>{m.code}</strong> with friends. They need both to join.</p>}
           <Countdown podId={m.podId} now={now} />
-          <SpaceView list={list} now={now} user={user} />
-          <AccentPicker podId={m.podId} current={accent} />
+          <SpaceView list={list} now={now} user={user} theme={m.theme} />
+          <ThemePicker podId={m.podId} current={m.theme} />
         </>
       ) : tab === 'chat' ? <PodChat m={m} isOwner={m.owner} /> : tab === 'notes' ? <PodNotes m={m} isOwner={m.owner} /> : (
         <>
