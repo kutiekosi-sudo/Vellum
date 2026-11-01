@@ -94,7 +94,7 @@ function SpaceView({ list, now, user, theme }) {
       <div className={`pod-space${themed ? ' themed' : ''}`} style={themed ? { background: theme.bg, '--seat': theme.fg } : { '--seat': '#1F5C4D' }}>
         {rows.map(({ x, st, sec, min }) => (
           <div key={x.id} className="pod-seat" data-state={st}>
-            <StudentIcon color={themed ? theme.fg : '#1F5C4D'} state={st} minutes={min} size={72} />
+            <StudentIcon color={themed ? theme.fg : '#1F5C4D'} state={st} minutes={min} size={76} />
             <span className="nm">{x.name || 'Student'}</span>
             <span className="tm">{hms(sec)}</span>
           </div>
