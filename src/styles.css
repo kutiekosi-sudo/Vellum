@@ -389,15 +389,22 @@ a.item-row:hover { background: var(--surface-2); }
 .quote figcaption { color: var(--muted); font-size: 14px; }
 
 /* ---------- pod space ---------- */
-.pod-space { display: grid; align-items: start; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 56px 12px; padding: 44px 12px 30px; border-radius: 18px; }
-.pod-space.themed { padding: 40px 12px 22px; }
-.pod-seat .student-icon { width: 100%; max-width: 76px; height: auto; }
-@media (max-width: 520px) { .pod-seat .nm { font-size: 12px; } .pod-seat .tm { font-size: 11px; } }
-@media (min-width: 521px) { .pod-space, .pod-space.themed { gap: 64px 22px; padding-left: 28px; padding-right: 28px; } }
+.pod-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; text-align: left; padding: 18px 20px; font: inherit; cursor: pointer; }
+.pod-stage { position: relative; border-radius: 22px; min-height: min(78vh, 720px); padding: 14px 14px 36px; }
+.pod-top { display: flex; align-items: center; justify-content: space-between; min-height: 44px; color: var(--seat); font-weight: 650; font-size: 18px; }
+.pod-iconbtn { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border: 0; border-radius: 22px; background: transparent; color: var(--seat); cursor: pointer; }
+.pod-iconbtn:hover { background: color-mix(in srgb, var(--seat) 14%, transparent); }
+.pod-menu { position: absolute; right: 14px; top: 62px; z-index: 5; min-width: 170px; background: #fff; border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 10px 30px rgba(0,0,0,.18); padding: 6px; display: flex; flex-direction: column; }
+.pod-menu button { text-align: left; background: transparent; border: 0; padding: 12px 14px; border-radius: 10px; font: inherit; font-weight: 600; color: #1F2328; cursor: pointer; }
+.pod-menu button:hover { background: #F0EFE9; }
+.pod-space { display: grid; align-items: start; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 64px 12px; padding: 42px 4px 20px; }
 .pod-seat { display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; min-width: 0; color: var(--seat); }
+.pod-seat .student-icon { width: 100%; max-width: 76px; height: auto; }
 .pod-seat .nm { font-weight: 600; font-size: 14px; max-width: 100%; line-height: 1.15; overflow-wrap: anywhere; margin-top: 4px; min-height: 2.3em; display: flex; align-items: center; justify-content: center; }
 .pod-seat .tm { font-size: 13px; font-variant-numeric: tabular-nums; opacity: .85; }
 .pod-seat[data-state="break"] .nm, .pod-seat[data-state="break"] .tm, .pod-seat[data-state="idle"] .nm, .pod-seat[data-state="idle"] .tm { opacity: .45; }
+@media (max-width: 520px) { .pod-seat .nm { font-size: 12px; } .pod-seat .tm { font-size: 11px; } }
+@media (min-width: 521px) { .pod-stage { padding: 20px 28px 44px; } .pod-space { gap: 72px 22px; } }
 .student-icon .dots circle { animation: dot-pulse 1.8s ease-in-out infinite; }
 .student-icon .dots circle:nth-child(even) { animation-delay: .6s; }
 .student-icon .flame { animation: flame-flicker .6s ease-in-out infinite alternate; }
