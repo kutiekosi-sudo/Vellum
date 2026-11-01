@@ -6,6 +6,7 @@ import { href } from '../lib/router.js';
 import { DAY, startOfDay } from '../lib/util.js';
 import { syncTopic } from '../lib/scheme.js';
 import Scheme from './Scheme.jsx';
+import Lesson from './Lesson.jsx';
 import { EVENT_TYPES, dateInput, dayShade, fromDateInput, monthHue, teachingStatus, typeOf } from '../lib/calendar.js';
 import { Badge, Button, Card, Empty, Notice, PageHead, PageSkeleton, SectionTitle, Seg, SelectField, TextArea, TextField, useConfirm } from '../ui/kit.jsx';
 
@@ -161,8 +162,8 @@ export default function Calendar() {
   return (
     <div className="stack lg">
       <PageHead title="Calendar" sub="Plan lessons, tasks, deadlines and exams. Learnr tells you what to teach today and where you are behind." />
-      <Seg label="Planner sections" value={tab} onChange={setTab} options={[{ value: 'calendar', label: 'Calendar' }, { value: 'scheme', label: 'Scheme of work' }]} />
-      {tab === 'calendar' ? <CalendarView /> : <Scheme />}
+      <Seg label="Planner sections" value={tab} onChange={setTab} options={[{ value: 'calendar', label: 'Calendar' }, { value: 'scheme', label: 'Scheme of work' }, { value: 'lesson', label: 'Lesson planner' }]} />
+      {tab === 'calendar' ? <CalendarView /> : tab === 'scheme' ? <Scheme /> : <Lesson />}
     </div>
   );
 }
