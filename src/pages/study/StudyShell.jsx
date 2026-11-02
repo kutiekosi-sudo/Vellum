@@ -13,7 +13,7 @@ const TABS = [
   { key: 'stats', label: 'Statistics', path: '/study/stats' },
   { key: 'insights', label: 'Insights', path: '/study/insights' },
   { key: 'practice', label: 'Practice', path: '/study/practice' },
-  { key: 'cards', label: 'Cards', path: '/study/cards' },
+  { key: 'cards', label: 'Flashcards', path: '/study/cards' },
 ];
 
 // Everything here works whether or not the student has joined a class.

@@ -5,8 +5,10 @@ import { db } from '../../backend/index.js';
 import { ai } from '../../lib/api.js';
 import { fmtDate, plural, shrinkImage } from '../../lib/util.js';
 import { runBatches, coverageCount } from '../../lib/batch.js';
-import { Badge, Button, Card, Empty, ErrorBlock, Notice, PageSkeleton, Progress, Seg, TextArea, TextField, useConfirm } from '../../ui/kit.jsx';
+import { Badge, Button, Card, Empty, ErrorBlock, Notice, PageSkeleton, Progress, Seg, Swatches, TextArea, TextField, useConfirm } from '../../ui/kit.jsx';
 
+export const DECK_SWATCHES = [{ hex: '#1F5C4D', name: 'Green' }, { hex: '#7B2D3B', name: 'Burgundy' }, { hex: '#2F6F8F', name: 'Teal' }, { hex: '#8A6D1F', name: 'Gold' }, { hex: '#6B5B95', name: 'Lavender' }, { hex: '#B2543A', name: 'Clay' }, { hex: '#4F7F5B', name: 'Sage' }, { hex: '#3E4A89', name: 'Blue' }];
+const DEFAULT_COLOR = DECK_SWATCHES[0].hex;
 const cleanCards = (raw) => (Array.isArray(raw) ? raw : []).map((c) => ({ front: String(c.front || '').trim().slice(0, 300), back: String(c.back || '').trim().slice(0, 600) })).filter((c) => c.front && c.back).slice(0, 120);
 
 function Create({ onDone, onCancel }) {
@@ -72,6 +74,43 @@ function Create({ onDone, onCancel }) {
   );
 }
 
+function Editor({ deck, onDone, onCancel }) {
+  const { user, fail, toast } = useApp();
+  const [title, setTitle] = useState(deck ? deck.title : '');
+  const [color, setColor] = useState((deck && deck.color) || DEFAULT_COLOR);
+  const [cards, setCards] = useState(deck ? deck.cards.map((c) => ({ ...c })) : [{ front: '', back: '' }]);
+  const [err, setErr] = useState('');
+  const edit = (i, k, v) => setCards(cards.map((c, j) => (j === i ? { ...c, [k]: v } : c)));
+  const save = async () => {
+    const clean = cleanCards(cards);
+    if (!title.trim()) { setErr('Give the deck a name.'); return; }
+    if (!clean.length) { setErr('Add at least one card with both a question and an answer.'); return; }
+    const data = { title: title.trim().slice(0, 80), color, cards: clean, source: (deck && deck.source) || 'own', createdAt: (deck && deck.createdAt) || Date.now(), updatedAt: Date.now() };
+    try {
+      let id = deck && deck.id;
+      if (id) await db.set(`users/${user.uid}/flashcards/${id}`, data); else id = await db.add(`users/${user.uid}/flashcards`, data);
+      toast('Deck saved'); onDone(id);
+    } catch (e) { fail(e); }
+  };
+  return (
+    <Card className="stack">
+      <h3>{deck ? 'Edit deck' : 'Write your own deck'}</h3>
+      <TextField label="Deck name" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={80} placeholder="For example: Cell structure" autoComplete="off" />
+      <Swatches label="Deck colour" value={color} onChange={setColor} colors={DECK_SWATCHES} />
+      {cards.map((c, i) => (
+        <div key={i} className="stack sm" data-card-row>
+          <div className="row between"><strong>Card {i + 1}</strong>{cards.length > 1 && <Button size="sm" variant="ghost" onClick={() => setCards(cards.filter((_, j) => j !== i))}>Remove</Button>}</div>
+          <TextArea label="Question" rows={2} value={c.front} onChange={(e) => edit(i, 'front', e.target.value)} maxLength={300} />
+          <TextArea label="Answer" rows={2} value={c.back} onChange={(e) => edit(i, 'back', e.target.value)} maxLength={600} />
+        </div>
+      ))}
+      <div><Button variant="secondary" icon="plus" onClick={() => setCards([...cards, { front: '', back: '' }])}>Add a card</Button></div>
+      {err && <Notice tone="warn">{err}</Notice>}
+      <div className="row wrap"><Button onClick={save}>Save deck</Button><Button variant="ghost" onClick={onCancel}>Cancel</Button></div>
+    </Card>
+  );
+}
+
 function Study({ deck, onExit }) {
   const [queue, setQueue] = useState(() => deck.cards.map((_, i) => i).sort(() => Math.random() - 0.5));
   const [flip, setFlip] = useState(false);
@@ -92,7 +131,7 @@ function Study({ deck, onExit }) {
       <div className="row" style={{ justifyContent: 'space-between' }}><span className="muted small">{known} of {total} known, {queue.length} to go</span><Button size="sm" variant="ghost" onClick={onExit}>Exit</Button></div>
       <Progress value={(known / total) * 100} label="Cards known" />
       <button type="button" onClick={() => setFlip(!flip)} aria-label={flip ? 'Showing the answer. Tap to see the question.' : 'Showing the question. Tap to see the answer.'}
-        style={{ minHeight: 200, padding: 24, borderRadius: 16, border: '2px solid var(--line, #ddd)', background: flip ? 'var(--accent-soft, #e8f1ee)' : 'var(--surface, #fff)', fontSize: 20, cursor: 'pointer', textAlign: 'center' }}>
+        style={{ minHeight: 200, padding: 24, borderRadius: 16, border: `2px solid ${deck.color || 'var(--line, #ddd)'}`, background: flip ? `color-mix(in srgb, ${deck.color || '#1F5C4D'} 12%, white)` : 'var(--surface, #fff)', fontSize: 20, cursor: 'pointer', textAlign: 'center' }}>
         <span className="muted small" style={{ display: 'block', marginBottom: 8 }}>{flip ? 'Answer' : 'Question'}</span>{flip ? card.back : card.front}
       </button>
       {flip ? <div className="row wrap" style={{ justifyContent: 'center' }}><Button variant="ghost" onClick={() => answer(false)}>Still learning</Button><Button onClick={() => answer(true)}>I knew it</Button></div> : <div className="row" style={{ justifyContent: 'center' }}><Button onClick={() => setFlip(true)}>Show answer</Button></div>}
@@ -107,6 +146,11 @@ export default function Cards() {
   const [view, setView] = useState({ name: 'list' });
   const decks = (list.data || []).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   if (view.name === 'new') return <Create onCancel={() => setView({ name: 'list' })} onDone={(id) => setView({ name: 'study', id })} />;
+  if (view.name === 'write') return <Editor onCancel={() => setView({ name: 'list' })} onDone={() => setView({ name: 'list' })} />;
+  if (view.name === 'edit') {
+    const deck = decks.find((d) => d.id === view.id);
+    if (deck) return <Editor key={deck.id} deck={deck} onCancel={() => setView({ name: 'list' })} onDone={() => setView({ name: 'list' })} />;
+  }
   if (view.name === 'study') {
     const deck = decks.find((d) => d.id === view.id);
     if (!deck) return list.loading ? <PageSkeleton rows={2} /> : <Empty art="search" title="Deck not found" text="It may have been deleted."><Button onClick={() => setView({ name: 'list' })}>Back</Button></Empty>;
@@ -118,7 +162,7 @@ export default function Cards() {
   };
   return (
     <div className="stack">
-      <div><Button icon="plus" onClick={() => setView({ name: 'new' })}>New flashcards</Button></div>
+      <div className="row wrap"><Button icon="plus" onClick={() => setView({ name: 'new' })}>Make from notes</Button><Button variant="secondary" onClick={() => setView({ name: 'write' })}>Write my own</Button></div>
       {list.loading ? <PageSkeleton rows={2} /> : list.error ? <ErrorBlock error={list.error} /> : decks.length === 0 ? (
         <Empty art="folder" title="No flashcards yet" text="Paste your notes or photograph a page, and get cards to flip through. Only you can see them." />
       ) : (
@@ -126,9 +170,10 @@ export default function Cards() {
           {decks.map((d) => (
             <div className="item-row" key={d.id}>
               <button type="button" className="row grow" style={{ background: 'none', border: 0, textAlign: 'left', padding: 0, cursor: 'pointer', color: 'inherit', minWidth: 0 }} onClick={() => setView({ name: 'study', id: d.id })}>
-                <span className="grow"><strong className="break">{d.title}</strong><span className="muted small" style={{ display: 'block' }}>{plural(d.cards.length, 'card')}, {fmtDate(d.createdAt)}</span></span>
-                <Badge>{d.source === 'photo' ? 'From photo' : 'From notes'}</Badge>
+                <i aria-hidden="true" style={{ width: 12, height: 40, borderRadius: 6, background: d.color || '#1F5C4D', flex: '0 0 12px' }} /><span className="grow"><strong className="break">{d.title}</strong><span className="muted small" style={{ display: 'block' }}>{plural(d.cards.length, 'card')}, {fmtDate(d.createdAt)}</span></span>
+                <Badge>{d.source === 'photo' ? 'From photo' : d.source === 'own' ? 'My own' : 'From notes'}</Badge>
               </button>
+              <Button size="sm" variant="ghost" onClick={() => setView({ name: 'edit', id: d.id })}>Edit</Button>
               <Button size="sm" variant="ghost" onClick={() => remove(d)}>Delete</Button>
             </div>
           ))}

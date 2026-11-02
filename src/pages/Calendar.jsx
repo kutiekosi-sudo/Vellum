@@ -162,7 +162,7 @@ export default function Calendar() {
   return (
     <div className="stack lg">
       <PageHead title="Calendar" sub="Plan lessons, tasks, deadlines and exams. Learnr tells you what to teach today and where you are behind." />
-      <Seg label="Planner sections" value={tab} onChange={setTab} options={[{ value: 'calendar', label: 'Calendar' }, { value: 'scheme', label: 'Scheme of work' }, { value: 'lesson', label: 'Lesson planner' }]} />
+      <Seg label="Planner sections" value={tab} onChange={setTab} options={[{ value: 'calendar', label: 'Calendar' }, { value: 'scheme', label: 'Scheme of work' }, { value: 'lesson', label: 'Lessons' }]} />
       {tab === 'calendar' ? <CalendarView /> : tab === 'scheme' ? <Scheme /> : <Lesson />}
     </div>
   );
