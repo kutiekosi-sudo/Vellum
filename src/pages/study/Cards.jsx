@@ -5,6 +5,7 @@ import { db } from '../../backend/index.js';
 import { ai } from '../../lib/api.js';
 import { fmtDate, plural, shrinkImage } from '../../lib/util.js';
 import { runBatches, coverageCount } from '../../lib/batch.js';
+import { AddWithCode, ShareButton } from './Sharing.jsx';
 import { Badge, Button, Card, Empty, ErrorBlock, Notice, PageSkeleton, Progress, Seg, Swatches, TextArea, TextField, useConfirm } from '../../ui/kit.jsx';
 
 export const DECK_SWATCHES = [{ hex: '#1F5C4D', name: 'Green' }, { hex: '#7B2D3B', name: 'Burgundy' }, { hex: '#2F6F8F', name: 'Teal' }, { hex: '#8A6D1F', name: 'Gold' }, { hex: '#6B5B95', name: 'Lavender' }, { hex: '#B2543A', name: 'Clay' }, { hex: '#4F7F5B', name: 'Sage' }, { hex: '#3E4A89', name: 'Blue' }];
@@ -162,19 +163,20 @@ export default function Cards() {
   };
   return (
     <div className="stack">
-      <div className="row wrap"><Button icon="plus" onClick={() => setView({ name: 'new' })}>Make from notes</Button><Button variant="secondary" onClick={() => setView({ name: 'write' })}>Write my own</Button></div>
+      <div className="row wrap"><Button icon="plus" onClick={() => setView({ name: 'new' })}>Make from notes</Button><Button variant="secondary" onClick={() => setView({ name: 'write' })}>Write my own</Button><AddWithCode kind="flashcards" /></div>
       {list.loading ? <PageSkeleton rows={2} /> : list.error ? <ErrorBlock error={list.error} /> : decks.length === 0 ? (
         <Empty art="folder" title="No flashcards yet" text="Paste your notes or photograph a page, and get cards to flip through. Only you can see them." />
       ) : (
         <Card className="list-card">
           {decks.map((d) => (
-            <div className="item-row" key={d.id}>
-              <button type="button" className="row grow" style={{ background: 'none', border: 0, textAlign: 'left', padding: 0, cursor: 'pointer', color: 'inherit', minWidth: 0 }} onClick={() => setView({ name: 'study', id: d.id })}>
+            <div className="item-row" style={{ flexWrap: 'wrap' }} key={d.id}>
+              <button type="button" className="row grow" style={{ background: 'none', border: 0, textAlign: 'left', padding: 0, cursor: 'pointer', color: 'inherit', minWidth: 0, flex: '1 1 210px' }} onClick={() => setView({ name: 'study', id: d.id })}>
                 <i aria-hidden="true" style={{ width: 12, height: 40, borderRadius: 6, background: d.color || '#1F5C4D', flex: '0 0 12px' }} /><span className="grow"><strong className="break">{d.title}</strong><span className="muted small" style={{ display: 'block' }}>{plural(d.cards.length, 'card')}, {fmtDate(d.createdAt)}</span></span>
-                <Badge>{d.source === 'photo' ? 'From photo' : d.source === 'own' ? 'My own' : 'From notes'}</Badge>
+                <Badge>{d.source === 'photo' ? 'From photo' : d.source === 'own' ? 'My own' : d.source === 'shared' ? 'Shared with me' : 'From notes'}</Badge>
               </button>
+              <div className="row" style={{ gap: 2 }}><ShareButton kind="flashcards" item={d} />
               <Button size="sm" variant="ghost" onClick={() => setView({ name: 'edit', id: d.id })}>Edit</Button>
-              <Button size="sm" variant="ghost" onClick={() => remove(d)}>Delete</Button>
+              <Button size="sm" variant="ghost" onClick={() => remove(d)}>Delete</Button></div>
             </div>
           ))}
         </Card>

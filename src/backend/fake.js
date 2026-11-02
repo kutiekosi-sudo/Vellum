@@ -39,7 +39,7 @@ function checkRead(kind, path, opts, data) {
   if (!U()) throw denied();
   const s = path.split('/');
   if (s[0] === 'users') { if (s[1] !== U()) throw denied(); return; }
-  if (s[0] === 'classCodes' || s[0] === 'podCodes') { if (kind === 'list') throw denied(); return; }
+  if (s[0] === 'classCodes' || s[0] === 'podCodes' || s[0] === 'shares') { if (kind === 'list') throw denied(); return; }
   if (s[0] === 'classes') {
     const c = s[1];
     if (s.length <= 2) {
@@ -167,6 +167,7 @@ function checkWrite(op, path, data, existing) {
     }
     throw denied();
   }
+  if (s[0] === 'shares') { if (op === 'create' && data.ownerUid === U() && ['flashcards', 'practice'].includes(data.kind)) return; if ((op === 'update' || op === 'delete') && existing && existing.ownerUid === U() && (op === 'delete' || (data.ownerUid === U() && data.kind === existing.kind))) return; throw denied(); }
   if (s[0] === 'podCodes') { if (op === 'create' && data.ownerUid === U()) return; if (op === 'update' && existing.ownerUid === U()) return; throw denied(); }
   if (s[0] === 'pods' && s.length === 2) {
     if (op === 'create' && data.ownerUid === U()) return;

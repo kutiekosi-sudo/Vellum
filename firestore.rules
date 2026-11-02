@@ -207,6 +207,20 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // ---------- shared study sets ----------
+    // A student can share a flashcard deck or practice set by giving a friend its long random code.
+    // Anyone with the code can read that one set; nobody can list or search them.
+    match /shares/{code} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn() && request.resource.data.ownerUid == me()
+        && request.resource.data.kind in ['flashcards', 'practice'];
+      allow update: if signedIn() && resource.data.ownerUid == me()
+        && request.resource.data.ownerUid == me()
+        && request.resource.data.kind == resource.data.kind;
+      allow delete: if signedIn() && resource.data.ownerUid == me();
+    }
+
     // ---------- study pods ----------
     match /podCodes/{code} {
       allow get: if signedIn();

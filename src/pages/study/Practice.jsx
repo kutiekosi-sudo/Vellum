@@ -5,6 +5,7 @@ import { db } from '../../backend/index.js';
 import { ai } from '../../lib/api.js';
 import { fmtDate, fmtClock, plural } from '../../lib/util.js';
 import { runBatches, coverageCount } from '../../lib/batch.js';
+import { AddWithCode, ShareButton } from './Sharing.jsx';
 import { Badge, Button, Card, Empty, ErrorBlock, Notice, PageSkeleton, Progress, SelectField, TextArea, TextField, useConfirm } from '../../ui/kit.jsx';
 
 const shuffle = (a) => { const c = [...a]; for (let i = c.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [c[i], c[j]] = [c[j], c[i]]; } return c; };
@@ -165,7 +166,7 @@ export default function Practice() {
   };
   return (
     <div className="stack">
-      <div><Button icon="plus" onClick={() => setView({ name: 'new' })}>New practice set</Button></div>
+      <div className="row wrap"><Button icon="plus" onClick={() => setView({ name: 'new' })}>New practice set</Button><AddWithCode kind="practice" /></div>
       {list.loading ? <PageSkeleton rows={2} /> : list.error ? <ErrorBlock error={list.error} /> : sets.length === 0 ? (
         <Empty art="test" title="No practice sets yet" text="Paste your notes and get private practice questions. Teachers never see them." />
       ) : (
@@ -173,15 +174,16 @@ export default function Practice() {
           {sets.map((s) => {
             const last = (s.history || [])[(s.history || []).length - 1];
             return (
-              <div className="item-row" key={s.id}>
-                <button type="button" className="row grow" style={{ background: 'none', border: 0, textAlign: 'left', padding: 0, cursor: 'pointer', color: 'inherit', minWidth: 0 }} onClick={() => setView({ name: 'play', id: s.id })}>
+              <div className="item-row" style={{ flexWrap: 'wrap' }} key={s.id}>
+                <button type="button" className="row grow" style={{ background: 'none', border: 0, textAlign: 'left', padding: 0, cursor: 'pointer', color: 'inherit', minWidth: 0, flex: '1 1 210px' }} onClick={() => setView({ name: 'play', id: s.id })}>
                   <span className="grow">
                     <strong className="break">{s.title}</strong>
                     <span className="muted small" style={{ display: 'block' }}>{[plural(s.questions.length, 'question'), s.subject, fmtDate(s.createdAt)].filter(Boolean).join(', ')}</span>
                   </span>
                   {last ? <Badge tone={last.score / last.total >= 0.7 ? 'ok' : ''}>Last {Math.round((last.score / last.total) * 100)}%</Badge> : <Badge>New</Badge>}
                 </button>
-                <Button size="sm" variant="ghost" onClick={() => remove(s)}>Delete</Button>
+                <div className="row" style={{ gap: 2 }}><ShareButton kind="practice" item={s} />
+                <Button size="sm" variant="ghost" onClick={() => remove(s)}>Delete</Button></div>
               </div>
             );
           })}
