@@ -1,5 +1,5 @@
 import { useApp } from '../lib/store.jsx';
-import { useLive, useAsync } from '../lib/hooks.js';
+import { useLive, useAsync, useLocalState } from '../lib/hooks.js';
 import { db } from '../backend/index.js';
 import { href } from '../lib/router.js';
 import { summarize } from '../lib/study.js';
@@ -177,7 +177,32 @@ function TeacherHome() {
   );
 }
 
+const TIPS = {
+  student: [
+    ['Study', 'Timer, statistics, practice quizzes and flashcards live here. It works with or without a class.'],
+    ['Pod', 'Study at the same time as your friends. You need the pod name and its code to join.'],
+    ['Got a code?', 'A class code goes under Classes. A friend\'s flashcards or quiz go under Study, then Add with a code.'],
+    ['Top bar', 'The magnifying glass searches your things. The bell shows news from your teachers.'],
+  ],
+  teacher: [
+    ['Classes', 'Create a class, give students the code, then post work, CBTs and see Analytics for each class.'],
+    ['Calendar', 'Your calendar, scheme of work and lesson planner. Learnr tells you what to teach today and where you are behind.'],
+    ['Top bar', 'The magnifying glass searches your classes and notes. The bell shows what students handed in.'],
+  ],
+};
+
+function Tips({ role }) {
+  const [gone, setGone] = useLocalState('learnr.tips.gone', false);
+  if (gone) return null;
+  return (
+    <Card className="stack sm" aria-label="Getting around">
+      <div className="row between"><strong>Getting around Learnr</strong><Button size="sm" variant="ghost" onClick={() => setGone(true)}>Got it</Button></div>
+      {TIPS[role === 'teacher' ? 'teacher' : 'student'].map(([h, t]) => <span key={h}><strong>{h}.</strong> <span className="muted">{t}</span></span>)}
+    </Card>
+  );
+}
+
 export default function Home() {
   const { role } = useApp();
-  return role === 'teacher' ? <TeacherHome /> : <StudentHome />;
+  return <div className="stack lg"><Tips role={role} />{role === 'teacher' ? <TeacherHome /> : <StudentHome />}</div>;
 }

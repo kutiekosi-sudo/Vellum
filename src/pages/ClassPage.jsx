@@ -48,7 +48,7 @@ export default function ClassPage({ route }) {
           <div className="row"><Badge>{c.joinMode === 'approval' ? 'You approve each student' : 'Anyone with the code can join'}</Badge></div>
         </Card>
       )}
-      <nav className="tabs" aria-label="Class sections">
+      <nav className="tabs wrap" aria-label="Class sections">
         {tabs.map((t) => <a key={t.key} href={href(`/class/${id}${t.key === 'stream' ? '' : '/' + t.key}`)} aria-current={tab === t.key ? 'page' : undefined}>{t.label}</a>)}
       </nav>
       {tab === 'stream' && <Stream cls={cls0} isOwner={isOwner} />}

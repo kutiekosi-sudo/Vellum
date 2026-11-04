@@ -8,6 +8,8 @@ import ClassPage from './pages/ClassPage.jsx';
 import Pod from './pages/Pod.jsx';
 import Coach from './pages/Coach.jsx';
 import Home from './pages/Home.jsx';
+import Notifications from './pages/Notifications.jsx';
+import Search from './pages/Search.jsx';
 import StudyShell from './pages/study/StudyShell.jsx';
 import Calendar from './pages/Calendar.jsx';
 
@@ -23,8 +25,8 @@ const soon = (title, art) => () => <Soon title={title} art={art} />;
 
 const SHARED = {
   '/profile': { title: 'Profile', Page: Profile },
-  '/notifications': { title: 'Notifications', Page: soon('Notifications', 'bell') },
-  '/search': { title: 'Search', Page: soon('Search', 'search') },
+  '/notifications': { title: 'Notifications', Page: Notifications },
+  '/search': { title: 'Search', Page: Search },
 };
 const STUDENT = {
   '/': { title: 'Home', Page: Home },
