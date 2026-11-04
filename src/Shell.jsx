@@ -66,7 +66,7 @@ export default function Shell() {
           </a>
           <a className="btn icon ghost topbar-me" href={href('/profile')} aria-label="Profile"><Avatar name={profile.displayName} src={profile.photoURL} size="sm" /></a>
         </header>
-        {!online && <div className="offline-bar" role="status">You are offline. You can read what you have already opened, but changes will not save until you reconnect.</div>}
+        {!online && <div className="offline-bar" role="status">You are offline. Things you have already opened still work and changes are kept on this device until you reconnect. AI, tests and pods need a connection.</div>}
         <main id="main" className="page" tabIndex={-1} ref={main}>
           {Page ? <Page {...match.props} /> : (
             <Empty art="search" title="We couldn't find that page" text="The link may be old or mistyped.">
