@@ -3,7 +3,7 @@
 const BUILD = '__BUILD_ID__';
 const APP = 'learnr-app-' + BUILD;
 const LIBS = 'learnr-libs';
-const SHELL = ['/', '/index.html', '/app.js?v=' + BUILD, '/app.css?v=' + BUILD, '/manifest.webmanifest', '/icon.svg', '/icon-192.png', '/icon-512.png'];
+const SHELL = ['/', '/index.html', '/app.js?v=' + BUILD, '/app.css?v=' + BUILD, '/manifest.webmanifest', '/icon.svg', '/icon-192.png', '/icon-512.png', '/logo-mark.webp', '/fonts/great-vibes.woff'];
 // Cross-origin files the app needs to start: the database libraries and the fonts.
 const LIB_HOSTS = ['www.gstatic.com', 'fonts.googleapis.com', 'fonts.gstatic.com'];
 
