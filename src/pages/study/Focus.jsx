@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useApp } from '../../lib/store.jsx';
 import { useLive, useNow } from '../../lib/hooks.js';
 import { db } from '../../backend/index.js';
-import { PHASES, summarize, beep, minutesOf } from '../../lib/study.js';
+import { PHASES, summarize, beep, minutesOf, recentSessions } from '../../lib/study.js';
 import { fmtClock, fmtDateTime, fmtMinutes, plural, shortName } from '../../lib/util.js';
 import { pushState } from '../../lib/pods.js';
 import { navigate } from '../../lib/router.js';
@@ -19,7 +19,7 @@ const loadSettings = () => { try { return { focus: 25, short: 5, long: 15, ...(J
 
 export default function Focus() {
   const { user, profile, toast, fail } = useApp();
-  const sessions = useLive(`users/${user.uid}/studySessions`);
+  const sessions = useLive(`users/${user.uid}/studySessions`, recentSessions());
   const memberships = useLive(`users/${user.uid}/memberships`);
   const goalDoc = useLive(`users/${user.uid}/goals/daily`);
   const now = useNow(500);

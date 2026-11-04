@@ -30,7 +30,7 @@ export default function Shell() {
   const route = useRoute();
   const nav = role === 'teacher' ? TEACHER_NAV : STUDENT_NAV;
   const main = useRef(null);
-  const notes = useLive('users/' + user.uid + '/notifications');
+  const notes = useLive('users/' + user.uid + '/notifications', { orderBy: ['createdAt', 'desc'], limit: 30 });
   const unread = (notes.data || []).filter((n) => !n.read).length;
 
   const match = routeFor(role, route);

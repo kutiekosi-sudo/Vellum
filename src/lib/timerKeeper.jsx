@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { useApp } from './store.jsx';
 import { useNow } from './hooks.js';
 import { db } from '../backend/index.js';
-import { PHASES, beep, summarize } from './study.js';
+import { PHASES, beep, summarize, todaySessions } from './study.js';
 import { guessSubject, SUBJECTS_PATH } from './subjects.js';
 import { pushState } from './pods.js';
 
@@ -39,7 +39,7 @@ export default function TimerKeeper() {
             topic: (t.topic || '').slice(0, 80), createdAt: Date.now(),
             subject: guessSubject({ subject: t.subject, mode: t.mode, className: t.className, topic: t.topic }, (saved && saved.list) || []),
           });
-          const all = await db.list(`users/${user.uid}/studySessions`).catch(() => []);
+          const all = await db.list(`users/${user.uid}/studySessions`, todaySessions()).catch(() => []);
           today = summarize(all).today;
         }
         if (ids.length) await pushState(user, ids, { state: t.phase === 'focus' ? 'break' : 'idle', stateSince: Date.now(), stateEndsAt: 0, todayMin: today, todayDay: new Date().toDateString() });
@@ -59,7 +59,7 @@ export function useTimerControls() {
   const podIds = async () => (await db.list(`users/${user.uid}/podMemberships`).catch(() => [])).map((x) => x.podId);
   const total = t ? (lengths()[t.phase] || PHASES[t.phase].defaultMin) * 60000 : 0;
   const leftMs = !t ? 0 : t.status === 'running' ? Math.max(0, t.endsAt - now) : t.status === 'paused' ? t.remainingMs : total;
-  const todayMin = async () => summarize(await db.list(`users/${user.uid}/studySessions`).catch(() => [])).today;
+  const todayMin = async () => summarize(await db.list(`users/${user.uid}/studySessions`, todaySessions()).catch(() => [])).today;
   const pause = async () => {
     const c = read(); if (!c || c.status !== 'running') return;
     write({ ...c, status: 'paused', remainingMs: Math.max(0, c.endsAt - Date.now()) });

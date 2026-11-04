@@ -7,8 +7,8 @@ import { Button, Card, Empty, ErrorBlock, PageHead, PageSkeleton } from '../ui/k
 
 export default function Notifications() {
   const { user, fail } = useApp();
-  const live = useLive(`users/${user.uid}/notifications`);
-  const items = [...(live.data || [])].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 100);
+  const live = useLive(`users/${user.uid}/notifications`, { orderBy: ['createdAt', 'desc'], limit: 60 });
+  const items = [...(live.data || [])].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   const unread = items.filter((n) => !n.read);
   const open = async (n) => {
     try { if (!n.read) await db.update(`users/${user.uid}/notifications/${n.id}`, { read: true }); } catch (e) { fail(e); }

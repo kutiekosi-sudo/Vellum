@@ -2,7 +2,7 @@ import { useApp } from '../lib/store.jsx';
 import { useLive, useAsync, useLocalState } from '../lib/hooks.js';
 import { db } from '../backend/index.js';
 import { href } from '../lib/router.js';
-import { summarize } from '../lib/study.js';
+import { summarize, recentSessions } from '../lib/study.js';
 import { cbt } from '../lib/api.js';
 import { dueLabel, firstName, plural } from '../lib/util.js';
 import { TeachingToday } from './Calendar.jsx';
@@ -35,7 +35,7 @@ async function loadStudentWork(uid, memberships) {
 
 function StudentHome() {
   const { user, profile } = useApp();
-  const sessions = useLive(`users/${user.uid}/studySessions`);
+  const sessions = useLive(`users/${user.uid}/studySessions`, recentSessions());
   const goalDoc = useLive(`users/${user.uid}/goals/daily`);
   const memberships = useLive(`users/${user.uid}/memberships`);
   const ready = !memberships.loading;

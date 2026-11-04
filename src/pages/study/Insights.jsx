@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { recentSessions } from '../../lib/study.js';
 import { useApp } from '../../lib/store.jsx';
 import { useLive } from '../../lib/hooks.js';
 import { db } from '../../backend/index.js';
@@ -12,7 +13,7 @@ import { logDecision } from '../../lib/ledger.js';
 export default function Insights() {
   const { user, fail } = useApp();
   const topicsQ = useLive(`users/${user.uid}/topics`);
-  const sessionsQ = useLive(`users/${user.uid}/studySessions`);
+  const sessionsQ = useLive(`users/${user.uid}/studySessions`, recentSessions());
   const readyDoc = useLive(`users/${user.uid}/goals/readiness`);
   const mapDoc = useLive(`users/${user.uid}/goals/depmap`);
   const [minutes, setMinutes] = useState('60');

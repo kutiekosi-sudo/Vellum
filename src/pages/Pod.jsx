@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { recentSessions } from '../lib/study.js';
 import { useApp } from '../lib/store.jsx';
 import { useLive, useNow } from '../lib/hooks.js';
 import StudentIcon from '../ui/StudentIcon.jsx';
@@ -277,7 +278,7 @@ function PodRoom({ m, onBack }) {
 function Pods({ onImmersive }) {
   const { user, profile, fail, toast } = useApp();
   const mine = useLive(`users/${user.uid}/podMemberships`);
-  const sessions = useLive(`users/${user.uid}/studySessions`);
+  const sessions = useLive(`users/${user.uid}/studySessions`, recentSessions());
   const [name, setName] = useState('');
   const [jname, setJname] = useState('');
   const [code, setCode] = useState('');

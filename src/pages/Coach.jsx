@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { recentSessions } from '../lib/study.js';
 import { useApp } from '../lib/store.jsx';
 import { useLive } from '../lib/hooks.js';
 import { db } from '../backend/index.js';
@@ -136,7 +137,7 @@ export default function Coach() {
   const { user } = useApp();
   const [tab, setTab] = useState('chat');
   const topicsQ = useLive(`users/${user.uid}/topics`);
-  const sessionsQ = useLive(`users/${user.uid}/studySessions`);
+  const sessionsQ = useLive(`users/${user.uid}/studySessions`, recentSessions());
   const topics = topicsQ.data || [];
   const context = studentContext(topics, sessionsQ.data || []);
   return (

@@ -33,7 +33,7 @@ function Composer({ cls }) {
 export default function Stream({ cls, isOwner }) {
   const { fail, toast } = useApp();
   const confirm = useConfirm();
-  const list = useLive(`classes/${cls.id}/announcements`);
+  const list = useLive(`classes/${cls.id}/announcements`, { orderBy: ['createdAt', 'desc'], limit: 40 });
   const items = (list.data || []).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   const remove = async (a) => {
     if (!(await confirm('Delete this announcement? Students will no longer see it.', { title: 'Delete announcement', confirmLabel: 'Delete', danger: true }))) return;

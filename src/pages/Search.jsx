@@ -11,14 +11,15 @@ const has = (q, ...f) => f.some((x) => norm(x).includes(q));
 export default function Search() {
   const { user, role } = useApp();
   const [q, setQ] = useState('');
-  const student = role !== 'teacher';
-  const classes = useLive(student ? `users/${user.uid}/memberships` : 'classes', student ? undefined : { where: [['teacherId', '==', user.uid]] });
-  const decks = useLive(student ? `users/${user.uid}/flashcards` : '');
-  const sets = useLive(student ? `users/${user.uid}/practice` : '');
-  const topics = useLive(student ? `users/${user.uid}/topics` : '');
-  const concepts = useLive(!student ? `users/${user.uid}/concepts` : '');
-  const events = useLive(!student ? `users/${user.uid}/calendar` : '');
   const term = norm(q).trim();
+  const on = term.length >= 2; // nothing is read from the database until something is typed
+  const student = role !== 'teacher';
+  const classes = useLive(on ? (student ? `users/${user.uid}/memberships` : 'classes') : '', student ? undefined : { where: [['teacherId', '==', user.uid]] });
+  const decks = useLive(on && student ? `users/${user.uid}/flashcards` : '');
+  const sets = useLive(on && student ? `users/${user.uid}/practice` : '');
+  const topics = useLive(on && student ? `users/${user.uid}/topics` : '');
+  const concepts = useLive(on && !student ? `users/${user.uid}/concepts` : '');
+  const events = useLive(on && !student ? `users/${user.uid}/calendar` : '');
   const groups = [];
   if (term.length >= 2) {
     const cls = (classes.data || []).filter((c) => has(term, c.name, c.className, c.subject)).map((c) => ({ id: c.classId || c.id, label: c.className || c.name, sub: c.subject, to: `/class/${c.classId || c.id}` }));

@@ -7,6 +7,12 @@ export const PHASES = {
   long: { label: 'Long break', defaultMin: 15 },
 };
 
+// Most screens only need the recent past (today, this week, the streak), so they read only the last RECENT_DAYS days
+// instead of every session ever saved. The Statistics page reads everything, because statistics are kept forever.
+export const RECENT_DAYS = 120;
+export const recentSessions = () => ({ where: [['startedAt', '>=', startOfDay() - RECENT_DAYS * DAY]] });
+export const todaySessions = () => ({ where: [['startedAt', '>=', startOfDay()]] });
+
 export const minutesOf = (s) => Math.round((Number(s.durationSec) || 0) / 60);
 
 export function summarize(sessions, now = Date.now()) {
