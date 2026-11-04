@@ -105,7 +105,7 @@ function checkWrite(op, path, data, existing) {
       return;
     }
     if (s[2] === 'notifications') return;
-    if (!['memberships', 'studySessions', 'goals', 'flashcards', 'practice', 'topics', 'aiChats', 'podMemberships', 'calendar', 'scheme', 'concepts'].includes(s[2])) throw denied();
+    if (!['memberships', 'studySessions', 'goals', 'flashcards', 'practice', 'topics', 'aiChats', 'podMemberships', 'calendar', 'scheme', 'concepts', 'questionBank'].includes(s[2])) throw denied();
     return;
   }
   if (s[0] === 'classes' && s.length === 2) {

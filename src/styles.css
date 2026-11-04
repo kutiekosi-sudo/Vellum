@@ -433,7 +433,7 @@ button.stats-cell { cursor: pointer; }
 .cal-cell[data-sel="1"] { outline: 3px solid #1F2328; outline-offset: -1px; }
 .cal-dots { display: flex; gap: 3px; min-height: 8px; }
 .cal-dots i { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
-@media (max-width: 420px) { .seg button { padding: 8px 11px; font-size: 13.5px; } }
+@media (max-width: 420px) { .seg button { padding: 8px 8px; font-size: 13px; } }
 
 .subnav { display: flex; flex-wrap: wrap; gap: 8px; margin: -8px 0 4px; }
 .subnav a { display: inline-flex; align-items: center; min-height: 36px; padding: 6px 14px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line-2); font-weight: 600; font-size: 14px; color: var(--ink-2); text-decoration: none; }

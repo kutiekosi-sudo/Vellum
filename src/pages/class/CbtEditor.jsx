@@ -9,6 +9,8 @@ import { toLocalInput, fromLocalInput } from '../../lib/util.js';
 import CbtResults from './CbtResults.jsx';
 import { Badge, Button, Seg, Card, Check, Empty, ErrorBlock, Notice, PageSkeleton, SectionTitle, SelectField, TextArea, TextField, useConfirm } from '../../ui/kit.jsx';
 import { Icon } from '../../ui/icons.jsx';
+import { useBank } from '../QuestionBank.jsx';
+import { saveToBank, toBank, validBank } from '../../lib/qbank.js';
 import { AddQuestions, McqCard, TheoryCard, blankMcq, blankTheory, mcqProblem, theoryProblem, withKey } from './CbtQuestions.jsx';
 
 export const PUBLISH_READY = true;
@@ -28,6 +30,15 @@ function Editor({ cls, tid, meta, initial }) {
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
   const [showErrors, setShowErrors] = useState(false);
+  const bank = useBank();
+  const toBankNow = async () => {
+    try {
+      const meta2 = { subject: cls.subject || '', topic: s.topic || '', difficulty: 'medium' };
+      const items = [...qs.map((q) => toBank(q, 'mcq', meta2)), ...th.map((q) => toBank(q, 'theory', meta2))].filter((b) => !validBank(b));
+      const n = await saveToBank(user.uid, bank.list, items);
+      toast(n ? `${n} question${n === 1 ? '' : 's'} saved to your bank` : 'Everything here is already in your bank');
+    } catch (e) { fail(e); }
+  };
   const mark = (fn) => (...a) => { setDirty(true); return fn(...a); };
   const set = (k) => (e) => { setDirty(true); setS({ ...s, [k]: e.target.value }); };
   const tog = (k) => (v) => { setDirty(true); setS({ ...s, [k]: v }); };
@@ -148,6 +159,8 @@ function Editor({ cls, tid, meta, initial }) {
         <TheoryCard key={q._k} q={q} i={i} n={th.length} showErrors={showErrors}
           onChange={mark((nq) => setTh(th.map((x, j) => (j === i ? nq : x))))} onMove={mark((d) => move(th, setTh, i, d))} onDup={() => dup(th, setTh, i)} onDel={() => del(th, setTh, i)} />
       ))}
+
+      {(qs.length > 0 || th.length > 0) && <div><Button variant="secondary" onClick={toBankNow}>Save these to my question bank</Button></div>}
 
       <Card className="stack">
         <h3>Publishing</h3>
