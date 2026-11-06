@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useApp } from '../lib/store.jsx';
 import { useLive } from '../lib/hooks.js';
 import { db } from '../backend/index.js';
-import { LEVELS, bankPath, filterBank, fromBank, saveToBank, toBank, validBank } from '../lib/qbank.js';
+import { LEVELS, autoPick, bankPath, filterBank, fromBank, newRule, ruleText, saveToBank, toBank, validBank } from '../lib/qbank.js';
 import { PastePanel } from './class/CbtQuestions.jsx';
 import { Badge, Button, Card, Check, Empty, Notice, PageSkeleton, SelectField, TextArea, TextField, useConfirm } from '../ui/kit.jsx';
 
@@ -31,8 +31,51 @@ function Filters({ f, setF, subjects }) {
 
 const noFilter = { q: '', subject: '', kind: '', difficulty: '' };
 
+// Describe the test you want ("10 easy and 5 hard on Cells") and Learnr picks the questions at random from the bank.
+function AutoBuilder({ bank, onAdd, have }) {
+  const [rules, setRules] = useState([newRule()]);
+  const [subject, setSubject] = useState('');
+  const [result, setResult] = useState(null);
+  const subjects = [...new Set(bank.map((b) => b.subject).filter(Boolean))].sort();
+  const topics = [...new Set(bank.filter((b) => !subject || b.subject === subject).map((b) => b.topic).filter(Boolean))].sort();
+  const setRule = (id, p) => { setResult(null); setRules(rules.map((r) => (r.id === id ? { ...r, ...p } : r))); };
+  const total = rules.reduce((n, r) => n + (Number(r.count) || 0), 0);
+  const skip = bank.filter((b) => have.includes(String(b.text).trim().toLowerCase())).map((b) => b.id); // already in this test
+  const run = () => setResult(autoPick(bank, rules, { skip, subject }));
+  const add = () => {
+    onAdd({ questions: result.picked.filter((b) => b.kind === 'mcq').map(fromBank), theory: result.picked.filter((b) => b.kind === 'theory').map(fromBank) });
+    setResult(null);
+  };
+  return (
+    <Card className="stack sm" aria-label="Build a test automatically">
+      <strong>Build a test automatically</strong>
+      <span className="muted small">Say how many questions you want of each kind. Learnr picks them at random from your bank, so each class can get a different mix.</span>
+      {subjects.length > 1 && <SelectField label="Subject" value={subject} onChange={(e) => { setSubject(e.target.value); setResult(null); }}><option value="">All subjects</option>{subjects.map((x) => <option key={x} value={x}>{x}</option>)}</SelectField>}
+      {rules.map((r, i) => (
+        <div key={r.id} className="stack sm" data-rule>
+          <div className="row wrap" style={{ gap: 8 }}>
+            <TextField label="How many" type="number" min="1" max="100" value={r.count} onChange={(e) => setRule(r.id, { count: e.target.value })} style={{ maxWidth: 90 }} />
+            <SelectField label="Type" value={r.kind} onChange={(e) => setRule(r.id, { kind: e.target.value })} className="grow"><option value="mcq">Multiple choice</option><option value="theory">Written</option><option value="">Either</option></SelectField>
+            <SelectField label="Level" value={r.difficulty} onChange={(e) => setRule(r.id, { difficulty: e.target.value })} className="grow"><option value="">Any level</option>{LEVELS.map((l) => <option key={l.v} value={l.v}>{l.l}</option>)}</SelectField>
+            <SelectField label="Topic" value={r.topic} onChange={(e) => setRule(r.id, { topic: e.target.value })} className="grow"><option value="">Any topic</option>{topics.map((t) => <option key={t} value={t}>{t}</option>)}</SelectField>
+          </div>
+          {rules.length > 1 && <div><Button size="sm" variant="ghost" onClick={() => { setResult(null); setRules(rules.filter((x) => x.id !== r.id)); }}>Remove line {i + 1}</Button></div>}
+        </div>
+      ))}
+      <div className="row wrap"><Button size="sm" variant="secondary" onClick={() => { setResult(null); setRules([...rules, newRule()]); }}>Add another line</Button><Button size="sm" onClick={run} disabled={total < 1}>Pick {total} questions</Button></div>
+      {result && (
+        <div className="stack sm" data-auto-result>
+          <Notice tone={result.short.length ? 'warn' : 'ok'}>Picked {result.picked.length} of {total} questions.{result.short.map((x) => ` Only ${x.available} ${ruleText(x.rule)} ${x.available === 1 ? 'is' : 'are'} available (you asked for ${x.want}).`).join('')}</Notice>
+          {result.picked.slice(0, 40).map((b) => <span key={b.id} className="small break">{b.kind === 'mcq' ? '•' : '✎'} {b.text.slice(0, 110)}</span>)}
+          <div className="row wrap"><Button onClick={add} disabled={!result.picked.length}>Add {result.picked.length} to this test</Button><Button variant="ghost" onClick={run}>Pick again</Button></div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 // Pick questions from the bank and hand them to a test being built.
-export function BankPicker({ onAdd }) {
+export function BankPicker({ onAdd, have = [] }) {
   const bank = useBank();
   const [f, setF] = useState(noFilter);
   const [pick, setPick] = useState([]);
@@ -47,6 +90,8 @@ export function BankPicker({ onAdd }) {
   };
   return (
     <div className="stack">
+      <AutoBuilder bank={bank.list} onAdd={onAdd} have={have} />
+      <strong>Or choose them yourself</strong>
       <Filters f={f} setF={setF} subjects={subjects} />
       <div className="stack sm" aria-label="Bank questions">
         {shown.slice(0, 60).map((b) => (

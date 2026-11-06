@@ -185,7 +185,7 @@ export function AiPanel({ cls, onAdd }) {
   );
 }
 
-export function AddQuestions({ cls, onAdd, onBlankMcq, onBlankTheory }) {
+export function AddQuestions({ cls, onAdd, onBlankMcq, onBlankTheory, have = [] }) {
   const [mode, setMode] = useState('ai');
   return (
     <Card className="stack">
@@ -193,7 +193,7 @@ export function AddQuestions({ cls, onAdd, onBlankMcq, onBlankTheory }) {
       <Seg label="How to add questions" value={mode} onChange={setMode} options={[{ value: 'ai', label: 'AI from notes' }, { value: 'paste', label: 'Paste a paper' }, { value: 'write', label: 'Write them' }, { value: 'bank', label: 'My bank' }]} />
       {mode === 'ai' && <AiPanel cls={cls} onAdd={onAdd} />}
       {mode === 'paste' && <PastePanel onAdd={onAdd} />}
-      {mode === 'bank' && <BankPicker onAdd={onAdd} />}
+      {mode === 'bank' && <BankPicker onAdd={onAdd} have={have} />}
       {mode === 'write' && (
         <div className="row wrap">
           <Button variant="secondary" icon="plus" onClick={onBlankMcq}>Multiple-choice question</Button>

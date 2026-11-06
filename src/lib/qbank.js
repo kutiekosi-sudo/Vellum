@@ -41,3 +41,29 @@ export function filterBank(list, f) {
   return list.filter((b) => (!f.subject || b.subject === f.subject) && (!f.kind || b.kind === f.kind) && (!f.difficulty || b.difficulty === f.difficulty)
     && (!t || String(b.text).toLowerCase().includes(t) || String(b.topic || '').toLowerCase().includes(t)));
 }
+
+// ---------- automatic test builder ----------
+// Each rule asks for `count` questions that match a topic, level and type ('' means any). Rules are filled in order and
+// never pick the same question twice. `skip` holds ids to leave out (for example questions already in the test).
+export const newRule = () => ({ id: Math.random().toString(36).slice(2, 8), topic: '', difficulty: '', kind: 'mcq', count: 5 });
+
+export function shuffled(list, rng = Math.random) {
+  const a = [...list];
+  for (let i = a.length - 1; i > 0; i -= 1) { const j = Math.floor(rng() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+
+export function autoPick(bank, rules, { skip = [], subject = '', rng = Math.random } = {}) {
+  const used = new Set(skip);
+  const picked = []; const report = [];
+  for (const r of rules) {
+    const want = Math.max(0, Math.min(100, Math.round(Number(r.count) || 0)));
+    const pool = bank.filter((b) => !used.has(b.id) && (!subject || b.subject === subject) && (!r.topic || b.topic === r.topic) && (!r.difficulty || b.difficulty === r.difficulty) && (!r.kind || b.kind === r.kind));
+    const take = shuffled(pool, rng).slice(0, want);
+    take.forEach((b) => { used.add(b.id); picked.push(b); });
+    report.push({ rule: r, want, got: take.length, available: pool.length });
+  }
+  return { picked, report, short: report.filter((x) => x.got < x.want) };
+}
+
+export const ruleText = (r) => [r.kind === 'theory' ? 'written' : r.kind === 'mcq' ? 'multiple-choice' : 'any type', r.difficulty || 'any level', r.topic ? `on ${r.topic}` : 'on any topic'].join(', ');

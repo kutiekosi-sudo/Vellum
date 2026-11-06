@@ -146,7 +146,7 @@ function Editor({ cls, tid, meta, initial }) {
         <Check label="Show explanations in the review" checked={s.showExplanations} onChange={tog('showExplanations')} />
       </Card>
 
-      <AddQuestions cls={cls} onAdd={addBatch} onBlankMcq={mark(() => setQs((c) => [...c, blankMcq()]))} onBlankTheory={mark(() => setTh((c) => [...c, blankTheory()]))} />
+      <AddQuestions cls={cls} have={[...qs, ...th].map((q) => String(q.text || '').trim().toLowerCase())} onAdd={addBatch} onBlankMcq={mark(() => setQs((c) => [...c, blankMcq()]))} onBlankTheory={mark(() => setTh((c) => [...c, blankTheory()]))} />
 
       <SectionTitle title={`Multiple-choice questions (${qs.length})`} />
       {qs.length === 0 ? <Empty art="test" title="No multiple-choice questions yet" text="Add some above." /> : qs.map((q, i) => (
