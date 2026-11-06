@@ -4,6 +4,7 @@ import { useLive, useLocalState } from '../lib/hooks.js';
 import { db } from '../backend/index.js';
 import { SIZES } from '../lib/scheme.js';
 import { SPANS, conceptsPath, giveCards, planLesson } from '../lib/lesson.js';
+import LessonPlans from './LessonPlans.jsx';
 import { Badge, Button, Card, Empty, Notice, PageSkeleton, SectionTitle, SelectField, TextArea, TextField, useConfirm } from '../ui/kit.jsx';
 
 const KIND = { settle: 'hsl(40 20% 92%)', starter: 'hsl(200 50% 93%)', teach: 'hsl(155 40% 91%)', practice: 'hsl(40 80% 91%)', wrap: 'hsl(270 35% 94%)' };
@@ -95,11 +96,12 @@ export default function Lesson() {
   const cards = [...(live.data || [])].sort((a, b) => (a.title || '').localeCompare(b.title || ''));
   return (
     <div className="stack">
-      <div className="row" style={{ gap: 8 }}>
+      <div className="row wrap" style={{ gap: 8 }}>
         <Button variant={tab === 'plan' ? 'primary' : 'secondary'} size="sm" onClick={() => setTab('plan')}>Lesson time</Button>
         <Button variant={tab === 'cards' ? 'primary' : 'secondary'} size="sm" onClick={() => setTab('cards')}>Concept cards ({cards.length})</Button>
+        <Button variant={tab === 'plans' ? 'primary' : 'secondary'} size="sm" onClick={() => setTab('plans')}>Lesson plans</Button>
       </div>
-      {tab === 'plan' ? <Planner cards={cards} /> : <Cards cards={cards} />}
+      {tab === 'plan' ? <Planner cards={cards} /> : tab === 'plans' ? <LessonPlans /> : <Cards cards={cards} />}
     </div>
   );
 }
