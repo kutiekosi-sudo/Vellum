@@ -75,7 +75,7 @@ function checkRead(kind, path, opts, data) {
       if (!pod || !(pod.ownerUid === U() || podMember(p, U()))) throw denied();
       return;
     }
-    if (s[2] === 'members' || s[2] === 'messages' || s[2] === 'notes' || s[2] === 'state') { if (!(podMember(p, U()) || (pod && pod.ownerUid === U()))) throw denied(); return; }
+    if (s[2] === 'members' || s[2] === 'messages' || s[2] === 'notes' || s[2] === 'state' || s[2] === 'quizzes') { if (!(podMember(p, U()) || (pod && pod.ownerUid === U()))) throw denied(); return; }
   }
   throw denied();
 }
@@ -189,6 +189,22 @@ function checkWrite(op, path, data, existing) {
       throw denied();
     }
     if (op === 'delete' && (existing.uid === U() || pod.ownerUid === U())) return;
+    throw denied();
+  }
+  if (s[0] === 'pods' && s[2] === 'quizzes') {
+    const p = s[1]; const pod = mem.get('pods/' + p) || {};
+    if (s.length === 4) {
+      if (op === 'create') {
+        if (podMember(p, U()) && data.uid === U() && typeof data.title === 'string' && data.title.length > 0 && data.title.length <= 80 && Array.isArray(data.questions) && data.questions.length >= 1 && data.questions.length <= 60 && typeof data.createdAt === 'number' && Object.keys(data).every((k) => ['uid', 'name', 'title', 'subject', 'questions', 'createdAt'].includes(k))) return;
+        throw denied();
+      }
+      if (op === 'delete' && (existing.uid === U() || pod.ownerUid === U())) return;
+      throw denied();
+    }
+    if (s[4] === 'results') {
+      if ((op === 'create' || op === 'update') && podMember(p, U()) && s[5] === U() && data.uid === U() && typeof data.score === 'number' && typeof data.total === 'number' && data.score >= 0 && data.score <= data.total && data.total >= 1 && data.total <= 60 && Object.keys(data).every((k) => ['uid', 'name', 'score', 'total', 'at'].includes(k))) return;
+      if (op === 'delete' && (s[5] === U() || pod.ownerUid === U())) return;
+    }
     throw denied();
   }
   if (s[0] === 'pods' && s[2] === 'members') {

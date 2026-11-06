@@ -66,7 +66,7 @@ function Create({ onDone, onCancel }) {
   );
 }
 
-function Play({ set, onExit, onSave }) {
+export function Play({ set, onExit, onSave }) {
   const [order] = useState(() => shuffle(set.questions.map((_, i) => i)));
   const [pos, setPos] = useState(0);
   const [picked, setPicked] = useState(null);

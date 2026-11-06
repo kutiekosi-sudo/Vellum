@@ -7,6 +7,7 @@ import { useTimerControls } from '../lib/timerKeeper.jsx';
 import { db } from '../backend/index.js';
 import { createPod, joinPod, leavePod, closePod, syncMyStats, pushState } from '../lib/pods.js';
 import { CLASS_COLORS, fmtDate, fmtMinutes, plural, relative, shortName } from '../lib/util.js';
+import { Play } from './study/Practice.jsx';
 import { Badge, Button, Card, CopyButton, Empty, Notice, PageHead, PageSkeleton, Seg, TextArea, TextField, useConfirm } from '../ui/kit.jsx';
 
 const stateOf = (x, now) => (x.state === 'studying' || x.state === 'break') && x.stateEndsAt > now ? x.state : (x.state === 'break' && !x.stateEndsAt && x.stateSince > now - 15 * 60000 ? 'break' : 'idle');
@@ -202,6 +203,75 @@ function PodNotes({ m, isOwner }) {
   );
 }
 
+function PodQuizzes({ m, isOwner }) {
+  const { user, profile, fail, toast } = useApp();
+  const confirm = useConfirm();
+  const quizzes = useLive(`pods/${m.podId}/quizzes`, { orderBy: ['createdAt', 'desc'], limit: 30 });
+  const mine = useLive(`users/${user.uid}/practice`);
+  const [picking, setPicking] = useState(false);
+  const [open, setOpen] = useState(null); // quiz being viewed
+  const [busy, setBusy] = useState('');
+  const list = (quizzes.data || []).slice().sort((a, b) => b.createdAt - a.createdAt);
+  const post = async (s) => {
+    setBusy(s.id);
+    try {
+      await db.add(`pods/${m.podId}/quizzes`, { uid: user.uid, name: shortName(profile.displayName), title: String(s.title || 'Quiz').slice(0, 80), subject: String(s.subject || '').slice(0, 60), questions: (s.questions || []).slice(0, 60), createdAt: Date.now() });
+      setPicking(false); toast('Quiz posted to your pod');
+    } catch (e) { fail(e); } finally { setBusy(''); }
+  };
+  const remove = async (x) => { if (!(await confirm('Delete this quiz for the whole pod?', { title: 'Delete quiz', confirmLabel: 'Delete', danger: true }))) return; try { await db.del(`pods/${m.podId}/quizzes/${x.id}`); setOpen(null); } catch (e) { fail(e); } };
+  if (open) {
+    const q = list.find((x) => x.id === open);
+    if (!q) return <div className="stack"><p className="muted">This quiz is gone.</p><div><Button variant="ghost" onClick={() => setOpen(null)}>Back</Button></div></div>;
+    return <QuizRoom m={m} quiz={q} onBack={() => setOpen(null)} onRemove={(q.uid === user.uid || isOwner) ? () => remove(q) : null} />;
+  }
+  return (
+    <div className="stack">
+      <p className="muted small">Post one of your practice sets. Everyone in the pod can take it and see each other's scores. Only people in this pod can see it.</p>
+      {picking ? (
+        <Card className="stack sm">
+          <strong>Choose a practice set to post</strong>
+          {mine.loading ? <PageSkeleton rows={2} /> : (mine.data || []).length === 0 ? <p className="muted">You have no practice sets yet. Make one in Study, then come back.</p> : (mine.data || []).map((s) => (
+            <div key={s.id} className="row between wrap"><span className="break"><strong>{s.title}</strong> <span className="muted small">{plural((s.questions || []).length, 'question')}</span></span><Button size="sm" loading={busy === s.id} onClick={() => post(s)}>Post to pod</Button></div>
+          ))}
+          <div><Button variant="ghost" size="sm" onClick={() => setPicking(false)}>Cancel</Button></div>
+        </Card>
+      ) : <div><Button onClick={() => setPicking(true)}>Post a quiz</Button></div>}
+      {quizzes.loading ? <PageSkeleton rows={2} /> : list.length === 0 ? <p className="muted">No quizzes in this pod yet.</p> : list.map((x) => (
+        <Card key={x.id} className="row between wrap">
+          <span className="break"><strong>{x.title}</strong><span className="muted small" style={{ display: 'block' }}>{plural(x.questions.length, 'question')}, posted by {x.name || 'a member'}, {relative(x.createdAt)}</span></span>
+          <Button size="sm" onClick={() => setOpen(x.id)}>Open</Button>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+function QuizRoom({ m, quiz, onBack, onRemove }) {
+  const { user, profile, fail } = useApp();
+  const results = useLive(`pods/${m.podId}/quizzes/${quiz.id}/results`);
+  const [playing, setPlaying] = useState(false);
+  const rows = (results.data || []).slice().sort((a, b) => (b.score / b.total) - (a.score / a.total) || a.at - b.at);
+  const mineRes = rows.find((r) => (r.uid || r.id) === user.uid);
+  const save = async (h) => {
+    // keep each person's best score
+    if (mineRes && mineRes.score / mineRes.total >= h.score / h.total) return;
+    try { await db.set(`pods/${m.podId}/quizzes/${quiz.id}/results/${user.uid}`, { uid: user.uid, name: shortName(profile.displayName), score: h.score, total: h.total, at: Date.now() }); } catch (e) { fail(e); }
+  };
+  if (playing) return <Play key={quiz.id} set={{ ...quiz }} onExit={() => setPlaying(false)} onSave={save} />;
+  return (
+    <div className="stack">
+      <div className="row between wrap"><h3 className="break">{quiz.title}</h3><Button size="sm" variant="ghost" onClick={onBack}>Back to quizzes</Button></div>
+      <div className="row wrap"><Button onClick={() => setPlaying(true)}>{mineRes ? 'Try again' : 'Take this quiz'}</Button>{onRemove && <Button variant="ghost" onClick={onRemove}>Delete quiz</Button>}</div>
+      <strong>Scores</strong>
+      {results.loading ? <PageSkeleton rows={2} /> : rows.length === 0 ? <p className="muted">Nobody has taken it yet. Be the first.</p> : rows.map((r, i) => (
+        <div key={r.id} className="row between" data-score><span className="break"><span className="muted small" style={{ marginRight: 8 }}>{i + 1}</span><strong>{r.name || 'Student'}</strong>{(r.uid || r.id) === user.uid ? ' (you)' : ''}</span><Badge tone={r.score / r.total >= 0.7 ? 'ok' : ''}>{r.score}/{r.total}</Badge></div>
+      ))}
+      <p className="muted small">Your best score is kept. Pod members see your first name and last initial and your score on this quiz.</p>
+    </div>
+  );
+}
+
 function PodRoom({ m, onBack }) {
   const { user, fail, toast } = useApp();
   const confirm = useConfirm();
@@ -238,7 +308,7 @@ function PodRoom({ m, onBack }) {
     return (
       <SpaceView list={list} now={now} user={user} theme={m.theme} onBack={onBack} onMenu={() => setMenu(!menu)} menuOpen={menu}
         countdown={<Countdown podId={m.podId} now={now} mode="display" />}
-        menu={<div className="pod-menu" role="menu">{[['chat', 'Chat'], ['notes', 'Notes'], ['board', 'This week'], ['settings', 'Settings']].map(([k, l]) => <button key={k} role="menuitem" type="button" onClick={() => go(k)}>{l}</button>)}</div>} />
+        menu={<div className="pod-menu" role="menu">{[['chat', 'Chat'], ['notes', 'Notes'], ['quizzes', 'Quizzes'], ['board', 'This week'], ['settings', 'Settings']].map(([k, l]) => <button key={k} role="menuitem" type="button" onClick={() => go(k)}>{l}</button>)}</div>} />
     );
   }
   return (
@@ -252,7 +322,7 @@ function PodRoom({ m, onBack }) {
           <p className="muted small">Study for 2 hours today and dots appear beside your head. Reach 5 hours and a flame appears above it. A faded icon means a break or away. The time under each name is today's study time. Pod members see your first name and last initial, whether you are studying, your minutes and your streak. Nothing else from your study space is shared.</p>
           <div className="row wrap">{m.owner ? <Button variant="ghost" size="sm" onClick={close}>Close pod</Button> : <Button variant="ghost" size="sm" onClick={leave}>Leave pod</Button>}</div>
         </div>
-      ) : tab === 'chat' ? <PodChat m={m} isOwner={m.owner} /> : tab === 'notes' ? <PodNotes m={m} isOwner={m.owner} /> : (
+      ) : tab === 'chat' ? <PodChat m={m} isOwner={m.owner} /> : tab === 'notes' ? <PodNotes m={m} isOwner={m.owner} /> : tab === 'quizzes' ? <PodQuizzes m={m} isOwner={m.owner} /> : (
         <>
           {others > 0 && me && (
             <Notice icon="info">{ahead === 0 ? 'You are ahead of everyone in your pod this week. Nicely done.' : ahead === others ? 'Everyone in your pod has studied more than you this week. A short session today would help you catch up. No pressure.' : `${ahead} of ${others} pod members have studied more than you this week.`}</Notice>
