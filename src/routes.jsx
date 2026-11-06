@@ -12,6 +12,7 @@ import Notifications from './pages/Notifications.jsx';
 import Search from './pages/Search.jsx';
 import StudyShell from './pages/study/StudyShell.jsx';
 import Calendar from './pages/Calendar.jsx';
+import TeacherCoach from './pages/TeacherCoach.jsx';
 
 function Soon({ title, art = 'desk' }) {
   return (
@@ -45,7 +46,7 @@ const TEACHER = {
   '/': { title: 'Home', Page: Home },
   '/classes': { title: 'Classes', Page: Classes },
   '/calendar': { title: 'Calendar', Page: Calendar },
-  '/coach': { title: 'Coach', Page: soon('Coach', 'coach') },
+  '/coach': { title: 'Coach', Page: TeacherCoach },
   ...SHARED,
 };
 

@@ -1,6 +1,6 @@
 // Learnr service worker. It keeps the app itself on the device so it opens with no signal and starts fast on weak data.
 // It never stores your private data: that is kept by the database library on the device. AI, tests and pods need a connection.
-const BUILD = 'mw5d6bqd';
+const BUILD = 'mw5d82x1';
 const APP = 'learnr-app-' + BUILD;
 const LIBS = 'learnr-libs';
 const SHELL = ['/', '/index.html', '/app.js?v=' + BUILD, '/app.css?v=' + BUILD, '/manifest.webmanifest', '/icon.svg', '/icon-192.png', '/icon-512.png', '/logo-mark.webp', '/fonts/great-vibes.woff'];
