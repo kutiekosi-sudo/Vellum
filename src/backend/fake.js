@@ -382,6 +382,10 @@ function fakeAi(p) {
   switch (p.mode) {
     case 'student_coach': return { text: `Here is a simple way to think about it: start with the definition, then try one example.${ctxEcho}${p.image ? ' (I can see your photo.)' : ''}` };
     case 'teacher_coach': return { text: 'Try three steps: a household example, a quick demonstration, then two discussion questions.' };
+    case 'mark_suggest': { // deterministic stand-in: longer answers get more marks; a very short one is "low" confidence
+      const items = (p.items || []).map((it) => { const len = String(it.answer || '').trim().length; const m = Math.min(it.maxMarks, Math.round((len / 40) * 2) / 2); return { id: it.id, marks: m, comment: `Test comment for ${it.id}.`, confidence: len < 15 ? 'low' : 'high' }; });
+      return { data: { items } };
+    }
     case 'explain_mistake': return { data: { type: 'careless_slip', title: 'A quick slip', explanation: 'You knew the idea but picked the wrong option.', fix: 'Re-read each option before choosing.', example: '' } };
     case 'photo_flashcards': return { data: [{ front: 'Term A', back: 'Meaning A' }, { front: 'Term B', back: 'Meaning B' }] };
     case 'flashcards': return { data: Array.from({ length: p.count || 2 }, (_, i) => ({ front: `Term ${p.notes ? p.notes.length : 0}-${i}-${Math.random().toString(36).slice(2, 6)}`, back: `Meaning ${i}` })) };
