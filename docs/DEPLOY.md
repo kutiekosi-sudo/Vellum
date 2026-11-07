@@ -9,7 +9,7 @@ Do these in order. Tick each one before the next.
 
 ## 2. Publish the access rules (Firebase console, Firestore, Rules)
 - [ ] Copy all of `firestore.rules` from the branch into the Rules editor and press Publish.
-- [ ] This is needed for: pods (name check, messages, notes, countdown), the calendar, scheme of work, concept cards and shared flashcards/quizzes. Until it is done, those features show "permission denied".
+- [ ] This is needed for: pods (name check, messages, notes, countdown), the calendar, scheme of work, concept cards, the question bank, lesson plans, shared flashcards/quizzes and pod quizzes. Until it is done, those features show "permission denied".
 
 ## 3. Deploy
 - [ ] Netlify, Deploys, make sure the latest `main` is published.
@@ -23,6 +23,9 @@ Do these in order. Tick each one before the next.
 - [ ] Share the deck with a code, add it from a second account.
 - [ ] Make a pod, join it from a second account using the name and code.
 - [ ] Sign in as a teacher: create a class, join it as a student, post an announcement, check the bell and Analytics.
+- [ ] Pod, Quizzes: post a practice set, take it from the second account, check both scores show.
+- [ ] Teacher: Calendar, Lessons, Lesson plans: make a plan from a template and share it with the class.
+- [ ] Teacher: Coach, Make something: draft a lesson outline (tests the AI). Then open a written answer, Mark, Suggest marks (tests AI marking).
 - [ ] Install the app from Profile. Switch on airplane mode and reopen it.
 
 ## 5. Pilot with one class

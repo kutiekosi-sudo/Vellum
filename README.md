@@ -1,6 +1,6 @@
 # Learnr: Learn. Practice. Improve.
 
-A web app for classrooms and self-study. Teachers run classes, assignments, CBTs, a calendar, a scheme of work, a lesson planner and class analytics. Students get a focus timer, statistics, practice quizzes, flashcards, an AI coach, and Study Pods to study with friends. Students without a school get every study feature.
+A web app for classrooms and self-study. Teachers run classes, assignments, CBTs, a calendar, a scheme of work, a lesson planner with reusable lesson plans, a question bank, AI marking suggestions, an AI teaching assistant and class analytics. Students get a focus timer, statistics, practice quizzes, flashcards, an AI coach, and Study Pods to study (and take quizzes) with friends. Students without a school get every study feature.
 
 Live site: https://learnr-study.netlify.app/
 
