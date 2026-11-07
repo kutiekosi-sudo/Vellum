@@ -197,7 +197,7 @@ export default function Assignment({ cls, aid, isOwner }) {
     <div className="stack">
       <div>{back}</div>
       <div className="page-head" style={{ marginBottom: 0 }}>
-        <div className="grow"><h1 className="break" style={{ fontSize: 26 }}>{a.title}</h1></div>
+        <div className="grow"><h2 className="break" style={{ fontSize: 26 }}>{a.title}</h2></div>
         {isOwner && <div className="row wrap"><Button size="sm" variant="secondary" onClick={toggle}>{a.published ? 'Unshare' : 'Share'}</Button><Button size="sm" variant="secondary" icon="edit" onClick={() => setEdit(true)}>Edit</Button></div>}
       </div>
       <Details cls={cls} a={a} />

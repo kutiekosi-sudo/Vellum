@@ -15,7 +15,7 @@ function Donut({ bands }) {
         acc += len; return el;
       })}
       <text x="70" y="66" textAnchor="middle" fontSize="26" fontWeight="700" fill="#1F2328">{total}</text>
-      <text x="70" y="84" textAnchor="middle" fontSize="11" fill="#6B7075">students</text>
+      <text x="70" y="84" textAnchor="middle" fontSize="12" fill="#5F646E">students</text>
     </svg>
   );
 }
@@ -48,13 +48,13 @@ export default function Analytics({ cls }) {
   const attention = a.rows.filter((r) => r.band === 'risk').sort((x, y) => x.avg - y.avg).slice(0, 8);
   return (
     <div className="stack lg">
-      <Card className="stack sm"><h3>Summary</h3><p className="pre">{writeSummary(cls.name, a)}</p></Card>
+      <Card className="stack sm"><h2 className="h-sm">Summary</h2><p className="pre">{writeSummary(cls.name, a)}</p></Card>
       <div className="grid cols-2">
         <Card className="stack sm"><div className="muted small">Class average</div><strong style={{ fontSize: 28 }}>{a.classAvg == null ? '-' : `${a.classAvg}%`}</strong></Card>
         <Card className="stack sm"><div className="muted small">Students with results</div><strong style={{ fontSize: 28 }}>{a.withData} of {a.students}</strong></Card>
       </div>
       <Card className="stack">
-        <h3>How the class is doing</h3>
+        <h2 className="h-sm">How the class is doing</h2>
         <div className="row wrap" style={{ gap: 20, alignItems: 'center', justifyContent: 'center' }}>
           <Donut bands={a.bands} />
           <div className="stack sm">
@@ -63,18 +63,18 @@ export default function Analytics({ cls }) {
         </div>
       </Card>
       <Card className="stack">
-        <h3>Average score for each test and assignment</h3>
+        <h2 className="h-sm">Average score for each test and assignment</h2>
         {a.items.length === 0 ? <p className="muted">No results yet.</p> : a.items.map((i) => <BarRow key={i.kind + i.id} label={i.title} pct={i.avg} sub={`${i.kind}, ${i.taken} of ${i.of} students`} color={i.avg != null && i.avg < 50 ? '#C0392B' : i.avg < 70 ? '#C98A1B' : '#2F7D5B'} />)}
       </Card>
       {a.topics.length > 0 && (
         <Card className="stack">
-          <h3>Topic strength</h3>
+          <h2 className="h-sm">Topic strength</h2>
           <p className="muted small">The share of test answers that were correct, by topic. The weakest are first.</p>
           {a.topics.map((t) => <BarRow key={t.topic} label={t.topic} pct={t.pct} sub={`${Math.round(t.total)} answers`} color={t.pct < 50 ? '#C0392B' : t.pct < 70 ? '#C98A1B' : '#2F7D5B'} />)}
         </Card>
       )}
       {attention.length > 0 && (
-        <Card className="stack sm"><h3>Students who may need support</h3>
+        <Card className="stack sm"><h2 className="h-sm">Students who may need support</h2>
           {attention.map((s) => <div key={s.uid} className="row between"><span className="break">{s.name}</span><Badge tone="warn">{s.avg}%</Badge></div>)}
         </Card>
       )}

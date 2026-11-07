@@ -55,7 +55,7 @@ export function McqCard({ q, i, n, onChange, onMove, onDup, onDel, showErrors })
         <legend className="small strong" style={{ marginBottom: 6 }}>Answer options. Tap the circle beside the correct one.</legend>
         {q.options.map((o, idx) => (
           <div className="row" key={idx}>
-            <input type="radio" name={`correct-${q._k}`} checked={q.correct === idx} onChange={() => set({ correct: idx })} aria-label={`Option ${LETTERS[idx]} is correct`} style={{ width: 22, height: 22, accentColor: 'var(--brand)', flex: 'none' }} />
+            <input type="radio" name={`correct-${q._k}`} checked={q.correct === idx} onChange={() => set({ correct: idx })} aria-label={`Option ${LETTERS[idx]} is correct`} style={{ width: 26, height: 26, accentColor: 'var(--brand)', flex: 'none' }} />
             <span className="strong" aria-hidden="true" style={{ width: 18 }}>{LETTERS[idx]}</span>
             <input className="input grow" value={o} onChange={(e) => setOpt(idx, e.target.value)} placeholder={`Option ${LETTERS[idx]}`} aria-label={`Option ${LETTERS[idx]} text`} maxLength={500} />
             {q.options.length > 2 && <IconButton icon="x" label={`Remove option ${LETTERS[idx]}`} size="sm" onClick={() => delOpt(idx)} />}

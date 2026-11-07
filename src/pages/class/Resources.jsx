@@ -59,7 +59,7 @@ export default function Resources({ cls, isOwner }) {
       ) : items.map((r) => (
         <Card key={r.id} className="stack sm">
           <div className="row top">
-            <div className="grow"><h3 className="break">{r.title}</h3><div className="muted small">{[r.topic, relative(r.createdAt)].filter(Boolean).join(', ')}</div></div>
+            <div className="grow"><h2 className="break h-sm">{r.title}</h2><div className="muted small">{[r.topic, relative(r.createdAt)].filter(Boolean).join(', ')}</div></div>
             {isOwner && !r.published && <Badge tone="warn">Draft</Badge>}
             {isOwner && <><Button size="sm" variant="secondary" onClick={() => toggle(r)}>{r.published ? 'Unshare' : 'Share'}</Button><IconButton icon="trash" label={`Delete ${r.title}`} size="sm" onClick={() => remove(r)} /></>}
           </div>

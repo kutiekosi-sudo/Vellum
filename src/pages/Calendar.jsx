@@ -49,7 +49,7 @@ export function TeachingToday({ compact }) {
   );
   return (
     <Card className="stack" aria-label="Teaching today">
-      <div className="row between wrap"><h3>Teaching today</h3>{compact && <a className="btn ghost sm" href={href('/calendar')}>Open calendar</a>}</div>
+      <div className="row between wrap"><h2 className="h-sm">Teaching today</h2>{compact && <a className="btn ghost sm" href={href('/calendar')}>Open calendar</a>}</div>
       {s.today.length === 0 ? <p className="muted">Nothing is scheduled for today.</p> : s.today.map((e) => <Row key={e.id} e={e} onDone={done} />)}
       {behind > 0 ? (
         <div className="stack sm">

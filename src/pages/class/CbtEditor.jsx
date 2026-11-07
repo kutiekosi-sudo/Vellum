@@ -112,7 +112,7 @@ function Editor({ cls, tid, meta, initial }) {
       <div className="page-head" style={{ marginBottom: 0 }}>
         <div className="grow">
           <a className="btn ghost sm" href={href(`/class/${cls.id}/cbts`)}><Icon name="left" />CBTs</a>
-          <h1 className="break" style={{ fontSize: 26 }}>{s.title || 'Untitled CBT'}</h1>
+          <h2 className="break" style={{ fontSize: 26 }}>{s.title || 'Untitled CBT'}</h2>
           <div className="row wrap" style={{ marginTop: 6 }}>
             <Badge>{qs.length} multiple-choice</Badge>{th.length > 0 && <Badge>{th.length} written</Badge>}<Badge>{totalMarks} marks</Badge>
             <Badge tone={meta.published ? 'ok' : 'warn'}>{meta.published ? 'Published' : 'Draft'}</Badge>
@@ -123,7 +123,7 @@ function Editor({ cls, tid, meta, initial }) {
       </div>
 
       <Card className="stack">
-        <h3>Settings</h3>
+        <h2 className="h-sm">Settings</h2>
         <TextField label="Title" value={s.title} onChange={set('title')} maxLength={140} autoComplete="off" />
         <div className="grid cols-2">
           <TextField label="Topic (optional)" value={s.topic} onChange={set('topic')} maxLength={80} autoComplete="off" />
@@ -163,7 +163,7 @@ function Editor({ cls, tid, meta, initial }) {
       {(qs.length > 0 || th.length > 0) && <div><Button variant="secondary" onClick={toBankNow}>Save these to my question bank</Button></div>}
 
       <Card className="stack">
-        <h3>Publishing</h3>
+        <h2 className="h-sm">Publishing</h2>
         <p className="muted">{meta.published ? 'Students can open this CBT now. Changing questions after students have started is not recommended.' : 'Publish when you are happy with the questions. Students are told as soon as it is live.'}</p>
         <div className="row wrap">
           {meta.published ? <Button variant="ghost" onClick={unpublish}>Unpublish</Button> : <Button loading={busy} onClick={publish}>Save and publish</Button>}

@@ -13,7 +13,7 @@ function ClassCard({ c, children, to }) {
     <Tag className={'card card-link class-card' + (to ? '' : ' static')} href={to} style={{ '--accent': c.color, '--accent-soft': `color-mix(in srgb, ${c.color} 14%, #fff)` }}>
       <div className="class-card-bar" />
       <div className="stack sm">
-        <h3 className="break clamp-2">{c.name || c.className}</h3>
+        <h2 className="break clamp-2">{c.name || c.className}</h2>
         <div className="muted small break">{[c.subject, c.section].filter(Boolean).join(', ') || 'Class'}</div>
         {children}
       </div>

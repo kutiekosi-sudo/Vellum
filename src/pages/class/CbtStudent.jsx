@@ -98,12 +98,12 @@ function Intro({ cls, tid, meta, rec, justDone, back, onStart }) {
     <div className="stack lg">
       <div>{back}</div>
       <div>
-        <h1 className="break" style={{ fontSize: 28 }}>{meta.title}</h1>
+        <h2 className="break" style={{ fontSize: 28 }}>{meta.title}</h2>
         {meta.topic && <p className="muted">{meta.topic}</p>}
       </div>
       {justDone && <ResultCard r={justDone} headline="Submitted" />}
       <Card className="stack">
-        <h3>Before you start</h3>
+        <h2 className="h-sm">Before you start</h2>
         <ul className="stack sm" style={{ paddingLeft: 20, margin: 0 }}>
           <li>{plural((meta.questionCount || 0), 'multiple-choice question')}{meta.theoryCount ? ` and ${plural(meta.theoryCount, 'written question')}` : ''}, {meta.totalPoints || 0} marks in all.</li>
           <li>{meta.timeLimitMin ? `You have ${meta.timeLimitMin} minutes. The clock runs on the server, so leaving the page does not pause it.` : 'There is no time limit.'}</li>

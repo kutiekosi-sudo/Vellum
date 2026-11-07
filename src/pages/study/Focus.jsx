@@ -150,7 +150,7 @@ export default function Focus() {
       </Card>
 
       <Card className="stack">
-        <h3>What are you studying?</h3>
+        <h2 className="h-sm">What are you studying?</h2>
         <Seg label="Study type" value={mode} onChange={(m) => { if (idle) setMode(m); }} options={[{ value: 'solo', label: 'On my own' }, { value: 'class', label: 'For a class' }]} />
         {mode === 'class' && (classes.length ? (
           <SelectField label="Class" value={classId} onChange={(e) => setClassId(e.target.value)} disabled={!idle}>
