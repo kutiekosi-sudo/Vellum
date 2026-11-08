@@ -38,3 +38,6 @@ See [docs/DEPLOY.md](docs/DEPLOY.md).
 ## What is kept private
 
 Study sessions, flashcards, practice sets, topics, goals, calendar, scheme of work and concept cards live under each person's own `users/{uid}` and only that person can read them. Teachers never see a student's private study data. A flashcard deck or practice set is shared only when its owner makes a share code. Pods need both the pod name and its code.
+
+## Tests
+`node test/load-cbt.mjs 100` runs the exam engine with 100 students at once (double taps, autosave during submit, time running out). It checks the logic with a stand-in store; real Netlify and Firebase limits can only be seen on the live site.

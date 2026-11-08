@@ -337,7 +337,7 @@ function setUser(u) {
 }
 
 // ---------- functions ----------
-const blobs = { q: new Map(), attempts: new Map(), files: new Map(), fileData: new Map() };
+const blobs = { q: new Map(), attempts: new Map(), progress: new Map(), files: new Map(), fileData: new Map() };
 
 const cbtIo = {
   now: () => Date.now(),
@@ -367,8 +367,11 @@ const cbtIo = {
   },
   async getAttempt(classId, cbtId, uid, id) { return clone(blobs.attempts.get(`${classId}/${cbtId}/${uid}/${id}`) || null); },
   async putAttempt(a) { blobs.attempts.set(`${a.classId}/${a.cbtId}/${a.uid}/${a.id}`, clone(a)); },
+  async getProgress(classId, cbtId, uid, id) { return clone(blobs.progress.get(`${classId}/${cbtId}/${uid}/${id}`) || null); },
+  async putProgress(classId, cbtId, uid, id, data) { blobs.progress.set(`${classId}/${cbtId}/${uid}/${id}`, clone(data)); },
   async deleteAttempts(classId, cbtId, uid) {
     const prefix = `${classId}/${cbtId}/${uid}/`;
+    [...blobs.progress.keys()].filter((k) => k.startsWith(prefix)).forEach((k) => blobs.progress.delete(k));
     const keys = [...blobs.attempts.keys()].filter((k) => k.startsWith(prefix));
     keys.forEach((k) => blobs.attempts.delete(k));
     return keys.length;
@@ -480,5 +483,5 @@ window.__fake = {
   list(path, opts) { return listDocs(path, opts); },
   dump() { return Object.fromEntries(mem); },
   blobs,
-  reset() { mem.clear(); blobs.q.clear(); blobs.attempts.clear(); blobs.files.clear(); blobs.fileData.clear(); try { localStorage.clear(); } catch { /* ignore */ } setUser(null); },
+  reset() { mem.clear(); blobs.q.clear(); blobs.attempts.clear(); blobs.progress.clear(); blobs.files.clear(); blobs.fileData.clear(); try { localStorage.clear(); } catch { /* ignore */ } setUser(null); },
 };

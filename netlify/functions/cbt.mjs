@@ -16,6 +16,9 @@ const qStore = () => store('learnr-cbt');
 const attemptPrefix = (classId, cbtId, uid) => `a/${classId}/${cbtId}/${uid ? uid + '/' : ''}`;
 const attemptKey = (classId, cbtId, uid, id) => `${attemptPrefix(classId, cbtId, uid)}${id}`;
 
+const progressPrefix = (classId, cbtId, uid) => `p/${classId}/${cbtId}/${uid ? uid + '/' : ''}`;
+const progressKey = (classId, cbtId, uid, id) => `${progressPrefix(classId, cbtId, uid)}${id}`;
+
 const io = {
   now: () => Date.now(),
   classAccess,
@@ -38,10 +41,13 @@ const io = {
   },
   getAttempt: (classId, cbtId, uid, id) => qStore().get(attemptKey(classId, cbtId, uid, id), { type: 'json' }),
   putAttempt: (a) => qStore().setJSON(attemptKey(a.classId, a.cbtId, a.uid, a.id), a),
+  getProgress: (classId, cbtId, uid, id) => qStore().get(progressKey(classId, cbtId, uid, id), { type: 'json' }),
+  putProgress: (classId, cbtId, uid, id, data) => qStore().setJSON(progressKey(classId, cbtId, uid, id), data),
   async deleteAttempts(classId, cbtId, uid) {
     const s = qStore();
     const { blobs } = await s.list({ prefix: attemptPrefix(classId, cbtId, uid) });
-    await Promise.all((blobs || []).map((b) => s.delete(b.key)));
+    const { blobs: saves } = await s.list({ prefix: progressPrefix(classId, cbtId, uid) });
+    await Promise.all([...(blobs || []), ...(saves || [])].map((b) => s.delete(b.key)));
     return (blobs || []).length;
   },
   limitStart: (user) => rateLimit(user, 'cbt-start', () => [['hour', 30, new Date().toISOString().slice(0, 13)]]),
