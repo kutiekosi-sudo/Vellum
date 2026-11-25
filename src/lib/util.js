@@ -7,6 +7,8 @@ export const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
 export const uniq = (a) => [...new Set(a)];
 export const plural = (n, one, many) => `${n} ${n === 1 ? one : many || one + 's'}`;
 export const initials = (name) => (String(name || '?').trim().split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase() || '').join('') || '?');
+// First name and last initial, for places classmates can see (never the full name).
+export const shortName = (name) => { const p = String(name || '').trim().split(/\s+/).filter(Boolean); return p.length > 1 ? `${p[0]} ${p[p.length - 1][0].toUpperCase()}.` : p[0] || 'Student'; };
 export const firstName = (name) => String(name || '').trim().split(/\s+/)[0] || '';
 
 export function groupBy(arr, keyFn) {
@@ -65,6 +67,13 @@ export function dueLabel(dueAt, now = Date.now()) {
   if (days === 1) return `Due tomorrow, ${fmtTime(dueAt)}`;
   if (days < 7) return `Due ${fmtWeekday(dueAt)}, ${fmtTime(dueAt)}`;
   return `Due ${fmtDate(dueAt)}`;
+}
+
+// Minutes as a friendly amount: 45 min, 2 h, 2 h 15 min.
+export function fmtMinutes(min) {
+  min = Math.max(0, Math.round(min || 0));
+  const h = Math.floor(min / 60); const m = min % 60;
+  return h ? (m ? `${h} h ${m} min` : `${h} h`) : `${m} min`;
 }
 
 export function fmtDuration(sec, short = false) {

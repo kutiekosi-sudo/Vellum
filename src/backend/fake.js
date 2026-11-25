@@ -39,7 +39,7 @@ function checkRead(kind, path, opts, data) {
   if (!U()) throw denied();
   const s = path.split('/');
   if (s[0] === 'users') { if (s[1] !== U()) throw denied(); return; }
-  if (s[0] === 'classCodes' || s[0] === 'podCodes') { if (kind === 'list') throw denied(); return; }
+  if (s[0] === 'classCodes' || s[0] === 'podCodes' || s[0] === 'shares') { if (kind === 'list') throw denied(); return; }
   if (s[0] === 'classes') {
     const c = s[1];
     if (s.length <= 2) {
@@ -52,7 +52,7 @@ function checkRead(kind, path, opts, data) {
       if (kind === 'list') { if (!isTeacherOf(c)) throw denied(); } else if (!(s[3] === U() || isTeacherOf(c))) throw denied();
       return;
     }
-    if (sub === 'announcements') { if (!(isTeacherOf(c) || isActive(c))) throw denied(); return; }
+    if (sub === 'announcements' || sub === 'room' || sub === 'presence') { if (!(isTeacherOf(c) || isActive(c))) throw denied(); return; }
     const published = () => {
       if (isTeacherOf(c)) return;
       if (!isActive(c)) throw denied();
@@ -75,7 +75,7 @@ function checkRead(kind, path, opts, data) {
       if (!pod || !(pod.ownerUid === U() || podMember(p, U()))) throw denied();
       return;
     }
-    if (s[2] === 'members') { if (!(podMember(p, U()) || (pod && pod.ownerUid === U()))) throw denied(); return; }
+    if (s[2] === 'members' || s[2] === 'messages' || s[2] === 'notes' || s[2] === 'state' || s[2] === 'quizzes') { if (!(podMember(p, U()) || (pod && pod.ownerUid === U()))) throw denied(); return; }
   }
   throw denied();
 }
@@ -105,7 +105,7 @@ function checkWrite(op, path, data, existing) {
       return;
     }
     if (s[2] === 'notifications') return;
-    if (!['memberships', 'studySessions', 'goals', 'flashcards', 'practice', 'aiChats', 'podMemberships'].includes(s[2])) throw denied();
+    if (!['memberships', 'studySessions', 'goals', 'flashcards', 'practice', 'topics', 'aiChats', 'podMemberships', 'calendar', 'scheme', 'concepts', 'questionBank', 'lessonPlans'].includes(s[2])) throw denied();
     return;
   }
   if (s[0] === 'classes' && s.length === 2) {
@@ -134,6 +134,21 @@ function checkWrite(op, path, data, existing) {
       if (m === U() && op === 'update' && changed(existing, data).every((k) => ['displayName', 'photoURL', 'activity'].includes(k))) return;
       throw denied();
     }
+    if (sub === 'room') {
+      if (op === 'create') {
+        const open = (cls(c) || {}).roomOpen !== false;
+        if (!((isTeacherOf(c) || (isActive(c) && open)) && data.uid === U() && typeof data.text === 'string' && data.text.length > 0 && data.text.length <= 300 && typeof data.createdAt === 'number'
+          && Object.keys(data).every((k) => ['uid', 'name', 'text', 'createdAt'].includes(k)))) throw denied();
+        return;
+      }
+      if (op === 'delete' && (isTeacherOf(c) || (existing && existing.uid === U()))) return;
+      throw denied();
+    }
+    if (sub === 'presence') {
+      if (op === 'delete') { if (s[3] === U() || isTeacherOf(c)) return; throw denied(); }
+      if (!(isActive(c) && s[3] === U() && data.uid === U() && Object.keys(data).every((k) => ['uid', 'name', 'topic', 'startedAt', 'endsAt'].includes(k)))) throw denied();
+      return;
+    }
     if (['announcements', 'resources', 'assignments', 'cbts'].includes(sub) && s.length <= 4) { if (!isTeacherOf(c)) throw denied(); return; }
     if (sub === 'cbts' && s[4] === 'theory') { if (!isTeacherOf(c)) throw denied(); return; }
     if (sub === 'assignments' && s[4] === 'submissions') {
@@ -152,10 +167,44 @@ function checkWrite(op, path, data, existing) {
     }
     throw denied();
   }
+  if (s[0] === 'shares') { if (op === 'create' && data.ownerUid === U() && ['flashcards', 'practice'].includes(data.kind)) return; if ((op === 'update' || op === 'delete') && existing && existing.ownerUid === U() && (op === 'delete' || (data.ownerUid === U() && data.kind === existing.kind))) return; throw denied(); }
   if (s[0] === 'podCodes') { if (op === 'create' && data.ownerUid === U()) return; if (op === 'update' && existing.ownerUid === U()) return; throw denied(); }
   if (s[0] === 'pods' && s.length === 2) {
     if (op === 'create' && data.ownerUid === U()) return;
     if (existing && existing.ownerUid === U()) return;
+    throw denied();
+  }
+  if (s[0] === 'pods' && s[2] === 'state') {
+    const p = s[1]; const pod = mem.get('pods/' + p) || {};
+    if ((op === 'create' || op === 'update') && s[3] === 'countdown' && (podMember(p, U()) || pod.ownerUid === U()) && data.byUid === U() && typeof data.minutes === 'number' && data.minutes >= 5 && data.minutes <= 720 && Object.keys(data).every((k) => ['minutes', 'startedAt', 'endsAt', 'by', 'byUid', 'active'].includes(k))) return;
+    throw denied();
+  }
+  if (s[0] === 'pods' && (s[2] === 'messages' || s[2] === 'notes')) {
+    const p = s[1]; const pod = mem.get('pods/' + p) || {};
+    if (op === 'create') {
+      const okShape = s[2] === 'messages'
+        ? typeof data.text === 'string' && data.text.length > 0 && data.text.length <= 400 && Object.keys(data).every((k) => ['uid', 'name', 'text', 'createdAt'].includes(k))
+        : typeof data.title === 'string' && data.title.length > 0 && data.title.length <= 100 && typeof data.body === 'string' && data.body.length > 0 && data.body.length <= 6000 && Object.keys(data).every((k) => ['uid', 'name', 'title', 'body', 'createdAt'].includes(k));
+      if (podMember(p, U()) && data.uid === U() && okShape && typeof data.createdAt === 'number') return;
+      throw denied();
+    }
+    if (op === 'delete' && (existing.uid === U() || pod.ownerUid === U())) return;
+    throw denied();
+  }
+  if (s[0] === 'pods' && s[2] === 'quizzes') {
+    const p = s[1]; const pod = mem.get('pods/' + p) || {};
+    if (s.length === 4) {
+      if (op === 'create') {
+        if (podMember(p, U()) && data.uid === U() && typeof data.title === 'string' && data.title.length > 0 && data.title.length <= 80 && Array.isArray(data.questions) && data.questions.length >= 1 && data.questions.length <= 60 && typeof data.createdAt === 'number' && Object.keys(data).every((k) => ['uid', 'name', 'title', 'subject', 'questions', 'createdAt'].includes(k))) return;
+        throw denied();
+      }
+      if (op === 'delete' && (existing.uid === U() || pod.ownerUid === U())) return;
+      throw denied();
+    }
+    if (s[4] === 'results') {
+      if ((op === 'create' || op === 'update') && podMember(p, U()) && s[5] === U() && data.uid === U() && typeof data.score === 'number' && typeof data.total === 'number' && data.score >= 0 && data.score <= data.total && data.total >= 1 && data.total <= 60 && Object.keys(data).every((k) => ['uid', 'name', 'score', 'total', 'at'].includes(k))) return;
+      if (op === 'delete' && (s[5] === U() || pod.ownerUid === U())) return;
+    }
     throw denied();
   }
   if (s[0] === 'pods' && s[2] === 'members') {
@@ -164,7 +213,7 @@ function checkWrite(op, path, data, existing) {
     const m = s[3];
     if (op === 'create') {
       const code = mem.get('podCodes/' + data.code);
-      if (m === U() && (pod.ownerUid === U() || (code && code.podId === p && code.active === true))) return;
+      if (m === U() && (pod.ownerUid === U() || (code && code.podId === p && code.active === true && (data.nameKey || '') === (code.nameKey || '')))) return;
       throw denied();
     }
     if (m === U() || pod.ownerUid === U()) return;
@@ -196,7 +245,12 @@ function listDocs(collPath, opts) {
       if (((opts && opts.where) || []).every((w) => matchWhere(d, w))) out.push({ id: p.split('/').pop(), ...clone(d) });
     }
   }
-  return out.sort((a, b) => (a.id < b.id ? -1 : 1));
+  out.sort((a, b) => (a.id < b.id ? -1 : 1));
+  if (opts && opts.orderBy) {
+    const [f, dir] = opts.orderBy;
+    out.sort((a, b) => (a[f] === b[f] ? 0 : a[f] < b[f] ? -1 : 1) * (dir === 'desc' ? -1 : 1));
+  }
+  return opts && opts.limit ? out.slice(0, opts.limit) : out;
 }
 const getDoc = (p) => (mem.has(p) ? { id: p.split('/').pop(), ...clone(mem.get(p)) } : null);
 
@@ -283,7 +337,7 @@ function setUser(u) {
 }
 
 // ---------- functions ----------
-const blobs = { q: new Map(), attempts: new Map(), files: new Map(), fileData: new Map() };
+const blobs = { q: new Map(), attempts: new Map(), progress: new Map(), files: new Map(), fileData: new Map() };
 
 const cbtIo = {
   now: () => Date.now(),
@@ -313,8 +367,11 @@ const cbtIo = {
   },
   async getAttempt(classId, cbtId, uid, id) { return clone(blobs.attempts.get(`${classId}/${cbtId}/${uid}/${id}`) || null); },
   async putAttempt(a) { blobs.attempts.set(`${a.classId}/${a.cbtId}/${a.uid}/${a.id}`, clone(a)); },
+  async getProgress(classId, cbtId, uid, id) { return clone(blobs.progress.get(`${classId}/${cbtId}/${uid}/${id}`) || null); },
+  async putProgress(classId, cbtId, uid, id, data) { blobs.progress.set(`${classId}/${cbtId}/${uid}/${id}`, clone(data)); },
   async deleteAttempts(classId, cbtId, uid) {
     const prefix = `${classId}/${cbtId}/${uid}/`;
+    [...blobs.progress.keys()].filter((k) => k.startsWith(prefix)).forEach((k) => blobs.progress.delete(k));
     const keys = [...blobs.attempts.keys()].filter((k) => k.startsWith(prefix));
     keys.forEach((k) => blobs.attempts.delete(k));
     return keys.length;
@@ -342,11 +399,18 @@ function fakeAi(p) {
   if (window.__fake.aiFail) throw new AppError('The AI is busy right now. Please try again in a moment.', 'ai_busy', 503);
   const ctxEcho = p.context ? ' (I can see your class data.)' : '';
   switch (p.mode) {
-    case 'student_coach': return { text: `Here is a simple way to think about it: start with the definition, then try one example.${ctxEcho}` };
+    case 'student_coach': return { text: `Here is a simple way to think about it: start with the definition, then try one example.${ctxEcho}${p.image ? ' (I can see your photo.)' : ''}` };
     case 'teacher_coach': return { text: 'Try three steps: a household example, a quick demonstration, then two discussion questions.' };
+    case 'mark_suggest': { // deterministic stand-in: longer answers get more marks; a very short one is "low" confidence
+      const items = (p.items || []).map((it) => { const len = String(it.answer || '').trim().length; const m = Math.min(it.maxMarks, Math.round((len / 40) * 2) / 2); return { id: it.id, marks: m, comment: `Test comment for ${it.id}.`, confidence: len < 15 ? 'low' : 'high' }; });
+      return { data: { items } };
+    }
     case 'explain_mistake': return { data: { type: 'careless_slip', title: 'A quick slip', explanation: 'You knew the idea but picked the wrong option.', fix: 'Re-read each option before choosing.', example: '' } };
-    case 'flashcards': case 'photo_flashcards': return { data: [{ front: 'Term A', back: 'Meaning A' }, { front: 'Term B', back: 'Meaning B' }] };
-    case 'practice_quiz': return { data: sampleQuestions(p.topic, Math.min(5, p.count || 5)) };
+    case 'photo_flashcards': return { data: [{ front: 'Term A', back: 'Meaning A' }, { front: 'Term B', back: 'Meaning B' }] };
+    case 'flashcards': return { data: Array.from({ length: p.count || 2 }, (_, i) => ({ front: `Term ${p.notes ? p.notes.length : 0}-${i}-${Math.random().toString(36).slice(2, 6)}`, back: `Meaning ${i}` })) };
+    case 'practice_quiz': return { data: sampleQuestions(`${p.topic} ${Math.random().toString(36).slice(2, 6)}`, Math.min(15, p.count || 5)) };
+    case 'dependency_map': return { data: (p.topics || []).map((t, i, a) => ({ topic: t, dependsOn: i ? [a[i - 1]] : [] })) };
+    case 'teach_back': return { data: { accuracy: String(p.explanation || '').length > 60 ? 80 : 30, covered: ['the main idea'], missing: ['an example'], misconception: String(p.explanation || '').includes('wrongly') ? 'Plants eat soil to grow.' : '', feedback: 'Good start. Add one concrete example next time.' } };
     case 'study_plan': return { data: { summary: 'Short sessions on your weakest topic first.', days: [{ day: 'Mon', focus: 'Maths: fractions', minutes: 25, tasks: ['Review notes', 'Do 5 questions'] }, { day: 'Tue', focus: 'Rest', minutes: 0, tasks: ['Take a break'] }] } };
     case 'break_down': return { data: { steps: [{ title: 'Read the instructions', minutes: 10, tip: 'Underline the verbs.' }, { title: 'Plan your answer', minutes: 15, tip: 'Write three bullet points.' }] } };
     case 'teacher_generate':
@@ -419,5 +483,5 @@ window.__fake = {
   list(path, opts) { return listDocs(path, opts); },
   dump() { return Object.fromEntries(mem); },
   blobs,
-  reset() { mem.clear(); blobs.q.clear(); blobs.attempts.clear(); blobs.files.clear(); blobs.fileData.clear(); try { localStorage.clear(); } catch { /* ignore */ } setUser(null); },
+  reset() { mem.clear(); blobs.q.clear(); blobs.attempts.clear(); blobs.progress.clear(); blobs.files.clear(); blobs.fileData.clear(); try { localStorage.clear(); } catch { /* ignore */ } setUser(null); },
 };

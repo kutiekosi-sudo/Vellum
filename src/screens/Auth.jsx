@@ -19,12 +19,14 @@ export function Boot() {
   );
 }
 
+import Logo from '../ui/Logo.jsx';
+
 function Hero({ children }) {
   return (
     <main className="auth">
       <div className="auth-art"><Art name="desk" /></div>
       <div className="auth-card stack">
-        <div className="wordmark">Learnr</div>
+        <Logo width={250} />
         <p className="tagline">Learn. Practice. Improve.</p>
         {children}
       </div>

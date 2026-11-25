@@ -8,7 +8,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js';
 import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, getDoc, setDoc, updateDoc, deleteDoc,
-  collection, addDoc, getDocs, query, where, onSnapshot, serverTimestamp, writeBatch, Timestamp, deleteField,
+  collection, addDoc, getDocs, query, where, orderBy, limit, onSnapshot, serverTimestamp, writeBatch, Timestamp, deleteField,
 } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js';
 import { AppError } from '../lib/errors.js';
 
@@ -59,7 +59,10 @@ const isDocPath = (p) => p.split('/').length % 2 === 0;
 function buildQuery(path, opts) {
   const c = collection(fdb, path);
   const w = (opts && opts.where) || [];
-  return w.length ? query(c, ...w.map(([f, o, v]) => where(f, o, v))) : c;
+  const parts = w.map(([f, o, v]) => where(f, o, v));
+  if (opts && opts.orderBy) parts.push(orderBy(opts.orderBy[0], opts.orderBy[1] || 'asc'));
+  if (opts && opts.limit) parts.push(limit(opts.limit));
+  return parts.length ? query(c, ...parts) : c;
 }
 
 // ---------- auth ----------

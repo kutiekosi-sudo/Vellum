@@ -6,6 +6,7 @@ import { useLive, useTitle } from './lib/hooks.js';
 import { Icon } from './ui/icons.jsx';
 import { Avatar, Empty, Button } from './ui/kit.jsx';
 import { routeFor } from './routes.jsx';
+import TimerKeeper from './lib/timerKeeper.jsx';
 
 const STUDENT_NAV = [
   { to: '/', label: 'Home', icon: 'home' },
@@ -17,6 +18,7 @@ const STUDENT_NAV = [
 const TEACHER_NAV = [
   { to: '/', label: 'Home', icon: 'home' },
   { to: '/classes', label: 'Classes', icon: 'classes' },
+  { to: '/calendar', label: 'Calendar', icon: 'calendar' },
   { to: '/coach', label: 'Coach', icon: 'coach' },
   { to: '/profile', label: 'Profile', icon: 'user' },
 ];
@@ -28,7 +30,7 @@ export default function Shell() {
   const route = useRoute();
   const nav = role === 'teacher' ? TEACHER_NAV : STUDENT_NAV;
   const main = useRef(null);
-  const notes = useLive('users/' + user.uid + '/notifications');
+  const notes = useLive('users/' + user.uid + '/notifications', { orderBy: ['createdAt', 'desc'], limit: 30 });
   const unread = (notes.data || []).filter((n) => !n.read).length;
 
   const match = routeFor(role, route);
@@ -40,6 +42,7 @@ export default function Shell() {
   const Page = match.Page;
   return (
     <div className="app">
+      <TimerKeeper />
       <a href="#main" className="skip" onClick={(e) => { e.preventDefault(); main.current && main.current.focus(); }}>Skip to content</a>
       <aside className="sidebar" aria-label="Main">
         <div className="wordmark">Learnr</div>
@@ -63,7 +66,7 @@ export default function Shell() {
           </a>
           <a className="btn icon ghost topbar-me" href={href('/profile')} aria-label="Profile"><Avatar name={profile.displayName} src={profile.photoURL} size="sm" /></a>
         </header>
-        {!online && <div className="offline-bar" role="status">You are offline. You can read what you have already opened, but changes will not save until you reconnect.</div>}
+        {!online && <div className="offline-bar" role="status">You are offline. Things you have already opened still work and changes are kept on this device until you reconnect. AI, tests and pods need a connection.</div>}
         <main id="main" className="page" tabIndex={-1} ref={main}>
           {Page ? <Page {...match.props} /> : (
             <Empty art="search" title="We couldn't find that page" text="The link may be old or mistyped.">

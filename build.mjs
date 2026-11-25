@@ -41,7 +41,7 @@ const result = await build({
   sourcemap: test ? 'inline' : false,
   legalComments: 'none',
   define: { 'process.env.NODE_ENV': '"production"' },
-  external: ['https://*'], // Firebase is loaded from Google's CDN at run time
+  external: ['https://*', '/fonts/*'], // Firebase is loaded from Google's CDN at run time
   loader: { '.css': 'css' },
   plugins: [swapBackend],
   metafile: true,

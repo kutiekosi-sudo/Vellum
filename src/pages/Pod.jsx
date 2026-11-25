@@ -1,0 +1,426 @@
+import { useEffect, useRef, useState } from 'react';
+import { recentSessions } from '../lib/study.js';
+import { useApp } from '../lib/store.jsx';
+import { useLive, useNow } from '../lib/hooks.js';
+import StudentIcon from '../ui/StudentIcon.jsx';
+import { useTimerControls } from '../lib/timerKeeper.jsx';
+import { db } from '../backend/index.js';
+import { createPod, joinPod, leavePod, closePod, syncMyStats, pushState } from '../lib/pods.js';
+import { CLASS_COLORS, fmtDate, fmtMinutes, plural, relative, shortName } from '../lib/util.js';
+import { Play } from './study/Practice.jsx';
+import { Badge, Button, Card, CopyButton, Empty, Notice, PageHead, PageSkeleton, Seg, TextArea, TextField, useConfirm } from '../ui/kit.jsx';
+
+const stateOf = (x, now) => (x.state === 'studying' || x.state === 'break') && x.stateEndsAt > now ? x.state : (x.state === 'break' && !x.stateEndsAt && x.stateSince > now - 15 * 60000 ? 'break' : 'idle');
+const todayOf = (x, now) => {
+  const base = x.todayDay === new Date(now).toDateString() ? (x.todayMin || 0) : 0;
+  return stateOf(x, now) === 'studying' && x.stateSince ? base + Math.max(0, Math.floor((now - x.stateSince) / 60000)) : base;
+};
+
+const hms = (sec) => { sec = Math.max(0, Math.floor(sec)); const p = (n) => String(n).padStart(2, '0'); return `${Math.floor(sec / 3600)}:${p(Math.floor((sec % 3600) / 60))}:${p(sec % 60)}`; };
+const ORDER = { studying: 0, break: 1, idle: 2 };
+
+const PRESETS = [{ m: 30, l: '30 min' }, { m: 60, l: '1 hour' }, { m: 120, l: '2 hours' }, { m: 180, l: '3 hours' }, { m: 300, l: '5 hours' }];
+
+function Countdown({ podId, now, mode = 'setup' }) {
+  const { user, profile, fail } = useApp();
+  const doc = useLive(`pods/${podId}/state/countdown`);
+  const [custom, setCustom] = useState('');
+  const c = doc.data;
+  const live = c && c.active && c.endsAt > now;
+  const set = async (minutes) => {
+    if (!(minutes >= 5 && minutes <= 720)) return;
+    const t = Date.now();
+    try { await db.set(`pods/${podId}/state/countdown`, { minutes, startedAt: t, endsAt: t + minutes * 60000, by: shortName(profile.displayName), byUid: user.uid, active: true }); setCustom(''); } catch (e) { fail(e); }
+  };
+  const end = async () => { try { await db.set(`pods/${podId}/state/countdown`, { minutes: c.minutes, startedAt: c.startedAt, endsAt: c.endsAt, by: c.by || '', active: false, byUid: user.uid }); } catch (e) { fail(e); } };
+  if (mode === 'display' && !live) return null;
+  if (live) {
+    const left = Math.ceil((c.endsAt - now) / 1000);
+    const h = Math.floor(left / 3600); const mm = Math.floor((left % 3600) / 60); const ss = left % 60;
+    const pad = (n) => String(n).padStart(2, '0');
+    if (mode === 'display') return <strong role="timer" aria-label="Group countdown" style={{ fontVariantNumeric: 'tabular-nums' }}>{h ? `${h}:` : ''}{pad(mm)}:{pad(ss)}</strong>;
+    return (
+      <div className="stack sm" style={{ textAlign: 'center', padding: '8px 0' }}>
+        <span className="muted small">{c.by || 'Someone'} started a {fmtMinutes(c.minutes)} group session</span>
+        <strong role="timer" style={{ fontSize: 40, fontVariantNumeric: 'tabular-nums', color: 'var(--accent)' }}>{h ? `${h}:` : ''}{pad(mm)}:{pad(ss)}</strong>
+        <div><Button size="sm" variant="ghost" onClick={end}>End countdown</Button></div>
+      </div>
+    );
+  }
+  return (
+    <div className="stack sm">
+      <span className="muted small">Group countdown: agree to study together for a set time</span>
+      <div className="row wrap">
+        {PRESETS.map((x) => <Button key={x.m} size="sm" variant="ghost" onClick={() => set(x.m)}>{x.l}</Button>)}
+        <input className="input" style={{ width: 90 }} type="number" inputMode="numeric" min="5" max="720" placeholder="Minutes" aria-label="Custom minutes" value={custom} onChange={(e) => setCustom(e.target.value)} />
+        <Button size="sm" disabled={!(Number(custom) >= 5)} onClick={() => set(Math.round(Number(custom)))}>Start</Button>
+      </div>
+    </div>
+  );
+}
+
+const HUES = [
+  { id: 'periwinkle', name: 'Periwinkle', h: 236, s: 62 }, { id: 'rose', name: 'Rose', h: 338, s: 55 }, { id: 'teal', name: 'Teal', h: 178, s: 50 },
+  { id: 'burgundy', name: 'Burgundy', h: 349, s: 55 }, { id: 'sage', name: 'Sage', h: 140, s: 25 }, { id: 'lavender', name: 'Lavender', h: 262, s: 50 },
+  { id: 'blue', name: 'Blue', h: 215, s: 65 }, { id: 'green', name: 'Green', h: 130, s: 45 }, { id: 'gold', name: 'Gold', h: 42, s: 60 }, { id: 'beige', name: 'Beige', h: 36, s: 28 },
+];
+const SHADE_L = [9, 20, 40, 78, 91];
+// Dark shades get light icons and text; light shades get dark ones.
+export const themeOf = (hue, i) => {
+  const l = SHADE_L[i]; const bg = `hsl(${hue.h} ${Math.max(10, hue.s - (l < 15 ? 20 : 0))}% ${l}%)`;
+  const fg = l < 50 ? `hsl(${hue.h} ${Math.min(90, hue.s + 20)}% 74%)` : `hsl(${hue.h} ${hue.s}% 24%)`;
+  return { hue: hue.id, shade: i, bg, fg };
+};
+
+function ThemePicker({ podId, current }) {
+  const { user, fail } = useApp();
+  const [open, setOpen] = useState(current && current.hue ? current.hue : '');
+  const save = async (t) => { try { await db.update(`users/${user.uid}/podMemberships/${podId}`, { theme: t }); } catch (e) { fail(e); } };
+  const hue = HUES.find((h) => h.id === open);
+  return (
+    <div className="stack sm"><span className="muted small">Colour theme for how you see this pod (only you see it)</span>
+      <div className="row wrap">{HUES.map((h) => <button key={h.id} type="button" title={h.name} aria-label={h.name} aria-pressed={open === h.id} onClick={() => setOpen(h.id)} style={{ width: 34, height: 34, borderRadius: 17, background: `hsl(${h.h} ${h.s}% 50%)`, border: open === h.id ? '3px solid #1F2328' : '2px solid #fff', boxShadow: '0 0 0 1px #c9c9c2' }} />)}</div>
+      {hue && <div className="row wrap" role="group" aria-label={`${hue.name} shades`}>{SHADE_L.map((_, i) => { const t = themeOf(hue, i); return <button key={i} type="button" aria-label={`${hue.name} shade ${i + 1}`} aria-pressed={current && current.hue === hue.id && current.shade === i} onClick={() => save(t)} style={{ width: 46, height: 34, borderRadius: 10, background: t.bg, border: current && current.hue === hue.id && current.shade === i ? '3px solid #1F2328' : '1px solid #c9c9c2', color: t.fg, fontWeight: 700 }}>A</button>; })}</div>}
+      {current && current.hue && <div><Button size="sm" variant="ghost" onClick={() => { setOpen(''); save({}); }}>Back to the default look</Button></div>}
+    </div>
+  );
+}
+
+const DEFAULT_THEME = { bg: '#ECE9DF', fg: '#1F5C4D' };
+const IconBtn = ({ label, onClick, children, ...rest }) => <button type="button" className="pod-iconbtn" aria-label={label} title={label} onClick={onClick} {...rest}>{children}</button>;
+
+function PodTimer() {
+  const { timer, leftSec, pause, resume, stop } = useTimerControls();
+  if (!timer) return null;
+  const mm = String(Math.floor(leftSec / 60)).padStart(2, '0'); const ss = String(leftSec % 60).padStart(2, '0');
+  const glyph = (d, fill) => <svg width="20" height="20" viewBox="0 0 24 24" fill={fill ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{d}</svg>;
+  return (
+    <div className="pod-timer" role="group" aria-label="My study timer">
+      <strong role="timer" aria-label={`${mm} minutes ${ss} seconds left`}>{mm}:{ss}</strong>
+      {timer.status === 'running'
+        ? <IconBtn label="Pause" onClick={pause}>{glyph(<><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></>, true)}</IconBtn>
+        : <IconBtn label="Resume" onClick={resume}>{glyph(<path d="M7 4l13 8-13 8z" />, true)}</IconBtn>}
+      <IconBtn label="Stop and save" onClick={stop}>{glyph(<rect x="6" y="6" width="12" height="12" rx="2" />, true)}</IconBtn>
+    </div>
+  );
+}
+
+function SpaceView({ list, now, user, theme, onBack, onMenu, menuOpen, menu, countdown }) {
+  const rows = list.map((x) => {
+    const st = stateOf(x, now);
+    const base = (x.todayDay === new Date(now).toDateString() ? (x.todayMin || 0) : 0) * 60;
+    const sec = st === 'studying' && x.stateSince ? base + Math.max(0, (now - x.stateSince) / 1000) : base;
+    return { x, st, sec, min: sec / 60 };
+  }).sort((a, b) => ORDER[a.st] - ORDER[b.st] || b.sec - a.sec);
+  const t = theme && theme.bg ? theme : DEFAULT_THEME;
+  return (
+    <div className="pod-stage" style={{ background: t.bg, '--seat': t.fg }}>
+      <div className="pod-top">
+        <IconBtn label="Back to my pods" onClick={onBack}><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M15 5l-7 7 7 7" /></svg></IconBtn>
+        <span className="pod-count">{countdown}</span>
+        <IconBtn label="Pod menu" onClick={onMenu} aria-expanded={menuOpen}><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" /></svg></IconBtn>
+      </div>
+      {menuOpen && menu}
+      <PodTimer />
+      <div className="pod-space">
+        {rows.map(({ x, st, sec, min }) => (
+          <div key={x.id} className="pod-seat" data-state={st}>
+            <StudentIcon color={t.fg} state={st} minutes={min} size={76} />
+            <span className="nm">{x.name || 'Student'}</span>
+            <span className="tm">{hms(sec)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PodChat({ m, isOwner }) {
+  const { user, profile, fail } = useApp();
+  const confirm = useConfirm();
+  const msgs = useLive(`pods/${m.podId}/messages`, { orderBy: ['createdAt', 'desc'], limit: 100 });
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const list = (msgs.data || []).slice().sort((a, b) => b.createdAt - a.createdAt);
+  const send = async () => {
+    const t = text.trim();
+    if (!t) return;
+    setBusy(true);
+    try { await db.add(`pods/${m.podId}/messages`, { uid: user.uid, name: shortName(profile.displayName), text: t.slice(0, 400), createdAt: Date.now() }); setText(''); } catch (e) { fail(e); } finally { setBusy(false); }
+  };
+  const remove = async (x) => { if (!(await confirm('Delete this message?', { title: 'Delete message', confirmLabel: 'Delete', danger: true }))) return; try { await db.del(`pods/${m.podId}/messages/${x.id}`); } catch (e) { fail(e); } };
+  return (
+    <div className="stack">
+      <div className="stack sm">
+        <TextArea label="Message your pod" value={text} onChange={(e) => setText(e.target.value)} maxLength={400} rows={2} />
+        <div><Button loading={busy} disabled={!text.trim()} onClick={send}>Send</Button></div>
+      </div>
+      {msgs.loading ? <PageSkeleton rows={2} /> : list.length === 0 ? <p className="muted">No messages yet. Say hello.</p> : (
+        <Card className="list-card">
+          {list.map((x) => (
+            <div className="item-row" key={x.id} style={{ alignItems: 'flex-start' }}>
+              <span className="grow"><strong>{x.name || 'Student'}</strong> <span className="muted small">{relative(x.createdAt)}</span><span className="pre break" style={{ display: 'block' }}>{x.text}</span></span>
+              {(x.uid === user.uid || isOwner) && <Button size="sm" variant="ghost" onClick={() => remove(x)}>Delete</Button>}
+            </div>
+          ))}
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function PodNotes({ m, isOwner }) {
+  const { user, profile, fail, toast } = useApp();
+  const confirm = useConfirm();
+  const notes = useLive(`pods/${m.podId}/notes`, { orderBy: ['createdAt', 'desc'], limit: 50 });
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState('');
+  const [body, setBody] = useState('');
+  const [busy, setBusy] = useState(false);
+  const list = (notes.data || []).slice().sort((a, b) => b.createdAt - a.createdAt);
+  const share = async () => {
+    setBusy(true);
+    try { await db.add(`pods/${m.podId}/notes`, { uid: user.uid, name: shortName(profile.displayName), title: title.trim().slice(0, 100), body: body.trim().slice(0, 6000), createdAt: Date.now() }); setTitle(''); setBody(''); setOpen(false); toast('Notes shared with your pod'); } catch (e) { fail(e); } finally { setBusy(false); }
+  };
+  const remove = async (x) => { if (!(await confirm('Delete these notes for the whole pod?', { title: 'Delete notes', confirmLabel: 'Delete', danger: true }))) return; try { await db.del(`pods/${m.podId}/notes/${x.id}`); } catch (e) { fail(e); } };
+  return (
+    <div className="stack">
+      {open ? (
+        <Card className="stack sm">
+          <TextField label="Title" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={100} autoComplete="off" />
+          <TextArea label="Notes" value={body} onChange={(e) => setBody(e.target.value)} maxLength={6000} rows={8} />
+          <div className="row wrap"><Button loading={busy} disabled={!title.trim() || !body.trim()} onClick={share}>Share with pod</Button><Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button></div>
+        </Card>
+      ) : <div><Button onClick={() => setOpen(true)}>Share notes</Button></div>}
+      {notes.loading ? <PageSkeleton rows={2} /> : list.length === 0 ? <p className="muted">No shared notes yet.</p> : list.map((x) => (
+        <Card key={x.id} className="stack sm">
+          <div className="row between wrap"><strong className="break">{x.title}</strong><span className="muted small">{x.name || 'Student'}, {relative(x.createdAt)}</span></div>
+          <div className="pre break">{x.body}</div>
+          {(x.uid === user.uid || isOwner) && <div><Button size="sm" variant="ghost" onClick={() => remove(x)}>Delete</Button></div>}
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+function PodQuizzes({ m, isOwner }) {
+  const { user, profile, fail, toast } = useApp();
+  const confirm = useConfirm();
+  const quizzes = useLive(`pods/${m.podId}/quizzes`, { orderBy: ['createdAt', 'desc'], limit: 30 });
+  const mine = useLive(`users/${user.uid}/practice`);
+  const [picking, setPicking] = useState(false);
+  const [open, setOpen] = useState(null); // quiz being viewed
+  const [busy, setBusy] = useState('');
+  const list = (quizzes.data || []).slice().sort((a, b) => b.createdAt - a.createdAt);
+  const post = async (s) => {
+    setBusy(s.id);
+    try {
+      await db.add(`pods/${m.podId}/quizzes`, { uid: user.uid, name: shortName(profile.displayName), title: String(s.title || 'Quiz').slice(0, 80), subject: String(s.subject || '').slice(0, 60), questions: (s.questions || []).slice(0, 60), createdAt: Date.now() });
+      setPicking(false); toast('Quiz posted to your pod');
+    } catch (e) { fail(e); } finally { setBusy(''); }
+  };
+  const remove = async (x) => { if (!(await confirm('Delete this quiz for the whole pod?', { title: 'Delete quiz', confirmLabel: 'Delete', danger: true }))) return; try { await db.del(`pods/${m.podId}/quizzes/${x.id}`); setOpen(null); } catch (e) { fail(e); } };
+  if (open) {
+    const q = list.find((x) => x.id === open);
+    if (!q) return <div className="stack"><p className="muted">This quiz is gone.</p><div><Button variant="ghost" onClick={() => setOpen(null)}>Back</Button></div></div>;
+    return <QuizRoom m={m} quiz={q} onBack={() => setOpen(null)} onRemove={(q.uid === user.uid || isOwner) ? () => remove(q) : null} />;
+  }
+  return (
+    <div className="stack">
+      <p className="muted small">Post one of your practice sets. Everyone in the pod can take it and see each other's scores. Only people in this pod can see it.</p>
+      {picking ? (
+        <Card className="stack sm">
+          <strong>Choose a practice set to post</strong>
+          {mine.loading ? <PageSkeleton rows={2} /> : (mine.data || []).length === 0 ? <p className="muted">You have no practice sets yet. Make one in Study, then come back.</p> : (mine.data || []).map((s) => (
+            <div key={s.id} className="row between wrap"><span className="break"><strong>{s.title}</strong> <span className="muted small">{plural((s.questions || []).length, 'question')}</span></span><Button size="sm" loading={busy === s.id} onClick={() => post(s)}>Post to pod</Button></div>
+          ))}
+          <div><Button variant="ghost" size="sm" onClick={() => setPicking(false)}>Cancel</Button></div>
+        </Card>
+      ) : <div><Button onClick={() => setPicking(true)}>Post a quiz</Button></div>}
+      {quizzes.loading ? <PageSkeleton rows={2} /> : list.length === 0 ? <p className="muted">No quizzes in this pod yet.</p> : list.map((x) => (
+        <Card key={x.id} className="row between wrap">
+          <span className="break"><strong>{x.title}</strong><span className="muted small" style={{ display: 'block' }}>{plural(x.questions.length, 'question')}, posted by {x.name || 'a member'}, {relative(x.createdAt)}</span></span>
+          <Button size="sm" onClick={() => setOpen(x.id)}>Open</Button>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+function QuizRoom({ m, quiz, onBack, onRemove }) {
+  const { user, profile, fail } = useApp();
+  const results = useLive(`pods/${m.podId}/quizzes/${quiz.id}/results`);
+  const [playing, setPlaying] = useState(false);
+  const rows = (results.data || []).slice().sort((a, b) => (b.score / b.total) - (a.score / a.total) || a.at - b.at);
+  const mineRes = rows.find((r) => (r.uid || r.id) === user.uid);
+  const save = async (h) => {
+    // keep each person's best score
+    if (mineRes && mineRes.score / mineRes.total >= h.score / h.total) return;
+    try { await db.set(`pods/${m.podId}/quizzes/${quiz.id}/results/${user.uid}`, { uid: user.uid, name: shortName(profile.displayName), score: h.score, total: h.total, at: Date.now() }); } catch (e) { fail(e); }
+  };
+  if (playing) return <Play key={quiz.id} set={{ ...quiz }} onExit={() => setPlaying(false)} onSave={save} />;
+  return (
+    <div className="stack">
+      <div className="row between wrap"><h3 className="break">{quiz.title}</h3><Button size="sm" variant="ghost" onClick={onBack}>Back to quizzes</Button></div>
+      <div className="row wrap"><Button onClick={() => setPlaying(true)}>{mineRes ? 'Try again' : 'Take this quiz'}</Button>{onRemove && <Button variant="ghost" onClick={onRemove}>Delete quiz</Button>}</div>
+      <strong>Scores</strong>
+      {results.loading ? <PageSkeleton rows={2} /> : rows.length === 0 ? <p className="muted">Nobody has taken it yet. Be the first.</p> : rows.map((r, i) => (
+        <div key={r.id} className="row between" data-score><span className="break"><span className="muted small" style={{ marginRight: 8 }}>{i + 1}</span><strong>{r.name || 'Student'}</strong>{(r.uid || r.id) === user.uid ? ' (you)' : ''}</span><Badge tone={r.score / r.total >= 0.7 ? 'ok' : ''}>{r.score}/{r.total}</Badge></div>
+      ))}
+      <p className="muted small">Your best score is kept. Pod members see your first name and last initial and your score on this quiz.</p>
+    </div>
+  );
+}
+
+function PodRoom({ m, onBack }) {
+  const { user, fail, toast } = useApp();
+  const confirm = useConfirm();
+  const now = useNow(1000);
+  const pod = useLive(`pods/${m.podId}`);
+  const members = useLive(`pods/${m.podId}/members`);
+  const [tab, setTab] = useState('space');
+  const [menu, setMenu] = useState(false);
+  const gone = !pod.loading && (!pod.data || pod.error);
+  const list = (members.data || []).slice().sort((a, b) => (b.weekMinutes || 0) - (a.weekMinutes || 0));
+  const me = list.find((x) => (x.uid || x.id) === user.uid);
+  const ahead = me ? list.filter((x) => (x.uid || x.id) !== user.uid && (x.weekMinutes || 0) > (me.weekMinutes || 0)).length : 0;
+  const others = list.length - 1;
+  const remove = async (x) => {
+    if (!(await confirm(`Remove ${x.name || 'this member'} from the pod?`, { title: 'Remove member', confirmLabel: 'Remove', danger: true }))) return;
+    try { await db.del(`pods/${m.podId}/members/${x.uid || x.id}`); } catch (e) { fail(e); }
+  };
+  const leave = async () => {
+    if (!(await confirm('Leave this pod?', { title: 'Leave pod', confirmLabel: 'Leave', danger: true }))) return;
+    try { await leavePod(user, m.podId); toast('You left the pod'); onBack(); } catch (e) { fail(e); }
+  };
+  const close = async () => {
+    if (!(await confirm('Close this pod for everyone? The code stops working.', { title: 'Close pod', confirmLabel: 'Close pod', danger: true }))) return;
+    try { await closePod(user, { id: m.podId, code: m.code }); toast('Pod closed'); onBack(); } catch (e) { fail(e); }
+  };
+  const go = (t) => { setTab(t); setMenu(false); };
+
+  if (gone) {
+    return (
+      <Card className="stack sm"><strong>{m.name}</strong><p className="muted">This pod was closed by its owner.</p><div className="row"><Button variant="ghost" size="sm" onClick={onBack}>Back</Button><Button variant="ghost" size="sm" onClick={() => db.del(`users/${user.uid}/podMemberships/${m.podId}`).then(onBack).catch(fail)}>Remove from my list</Button></div></Card>
+    );
+  }
+  if (tab === 'space') {
+    return (
+      <SpaceView list={list} now={now} user={user} theme={m.theme} onBack={onBack} onMenu={() => setMenu(!menu)} menuOpen={menu}
+        countdown={<Countdown podId={m.podId} now={now} mode="display" />}
+        menu={<div className="pod-menu" role="menu">{[['chat', 'Chat'], ['notes', 'Notes'], ['quizzes', 'Quizzes'], ['board', 'This week'], ['settings', 'Settings']].map(([k, l]) => <button key={k} role="menuitem" type="button" onClick={() => go(k)}>{l}</button>)}</div>} />
+    );
+  }
+  return (
+    <Card className="stack">
+      <div className="row between wrap"><h3 className="break">{m.name}</h3><Button size="sm" variant="ghost" onClick={() => go('space')}>Back to the pod</Button></div>
+      {tab === 'settings' ? (
+        <div className="stack lg">
+          <div className="stack sm"><strong>Invite friends</strong><div className="row"><Badge>{m.code}</Badge><CopyButton text={m.code} /></div><p className="muted">Share the pod name <strong>{m.name}</strong> and the code <strong>{m.code}</strong>. They need both to join, so the pod stays private.</p></div>
+          <ThemePicker podId={m.podId} current={m.theme} />
+          <Countdown podId={m.podId} now={now} />
+          <p className="muted small">Study for 2 hours today and dots appear beside your head. Reach 5 hours and a flame appears above it. A faded icon means a break or away. The time under each name is today's study time. Pod members see your first name and last initial, whether you are studying, your minutes and your streak. Nothing else from your study space is shared.</p>
+          <div className="row wrap">{m.owner ? <Button variant="ghost" size="sm" onClick={close}>Close pod</Button> : <Button variant="ghost" size="sm" onClick={leave}>Leave pod</Button>}</div>
+        </div>
+      ) : tab === 'chat' ? <PodChat m={m} isOwner={m.owner} /> : tab === 'notes' ? <PodNotes m={m} isOwner={m.owner} /> : tab === 'quizzes' ? <PodQuizzes m={m} isOwner={m.owner} /> : (
+        <>
+          {others > 0 && me && (
+            <Notice icon="info">{ahead === 0 ? 'You are ahead of everyone in your pod this week. Nicely done.' : ahead === others ? 'Everyone in your pod has studied more than you this week. A short session today would help you catch up. No pressure.' : `${ahead} of ${others} pod members have studied more than you this week.`}</Notice>
+          )}
+          <div className="stack sm">
+            {list.map((x, i) => (
+              <div key={x.id} className="row between" style={{ gap: 12 }}>
+                <span className="break"><span className="muted small" style={{ marginRight: 8 }}>{i + 1}</span><strong>{x.name || 'Student'}</strong>{(x.uid || x.id) === user.uid ? ' (you)' : ''}</span>
+                <span className="row" style={{ gap: 8 }}>
+                  <Badge tone={x.streak ? 'ok' : ''}>{plural(x.streak || 0, 'day')} streak</Badge>
+                  <Badge>{fmtMinutes(x.weekMinutes || 0)}</Badge>
+                  {m.owner && (x.uid || x.id) !== user.uid && <Button size="sm" variant="ghost" onClick={() => remove(x)}>Remove</Button>}
+                </span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </Card>
+  );
+}
+
+function Pods({ onImmersive }) {
+  const { user, profile, fail, toast } = useApp();
+  const mine = useLive(`users/${user.uid}/podMemberships`);
+  const sessions = useLive(`users/${user.uid}/studySessions`, recentSessions());
+  const [name, setName] = useState('');
+  const [jname, setJname] = useState('');
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState('');
+  const list = (mine.data || []).sort((a, b) => (a.joinedAt || 0) - (b.joinedAt || 0));
+  const [openId, setOpenId] = useState(() => { try { const v = sessionStorage.getItem('learnr.openPod') || ''; sessionStorage.removeItem('learnr.openPod'); return v; } catch { return ''; } });
+  const synced = useRef(new Set());
+  useEffect(() => {
+    // Keep my own numbers fresh in every pod I belong to, even if I only look at the list.
+    if (!sessions.data || mine.loading) return;
+    (mine.data || []).forEach((x) => { if (synced.current.has(x.podId)) return; synced.current.add(x.podId); syncMyStats(user, profile, x.podId, sessions.data).catch(() => {}); });
+  }, [sessions.data, mine.data, mine.loading]);
+  const opened = list.find((x) => x.podId === openId);
+  useEffect(() => { onImmersive(!!opened); }, [!!opened]);
+  if (opened) return <PodRoom m={opened} onBack={() => setOpenId('')} />;
+  const create = async () => { setBusy('c'); try { await createPod(user, profile, name); setName(''); toast('Pod created. Share its name and code.'); } catch (e) { fail(e); } finally { setBusy(''); } };
+  const join = async () => { setBusy('j'); try { await joinPod(user, profile, code, jname); setCode(''); setJname(''); toast('You joined the pod'); } catch (e) { fail(e); } finally { setBusy(''); } };
+  return (
+    <div className="stack lg">
+      {list.length === 0 && !mine.loading && <p className="muted">A study pod is a small private group of friends who keep each other going. You see who is studying, who is on a break, and each other's minutes. It works whether or not you are in a class.</p>}
+      {mine.loading ? <PageSkeleton rows={2} /> : list.length === 0 ? <Empty art="pod" title="You are not in a pod yet" text="Create one and share its name and code, or join a friend's pod." /> : (
+        <div className="stack">
+          {list.map((m) => (
+            <button key={m.podId} type="button" className="card card-link pod-row" onClick={() => setOpenId(m.podId)} aria-label={`Open ${m.name}`}>
+              <strong className="break">{m.name}</strong>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7" /></svg>
+            </button>
+          ))}
+        </div>
+      )}
+      <details open={list.length === 0}>
+      <summary className="muted" style={{ cursor: 'pointer', marginBottom: 12 }}>Start or join another pod</summary>
+      <div className="grid cols-2">
+        <Card className="stack sm"><strong>Start a pod</strong><TextField label="Pod name" value={name} onChange={(e) => setName(e.target.value)} maxLength={60} autoComplete="off" /><div><Button loading={busy === 'c'} disabled={!name.trim()} onClick={create}>Create pod</Button></div></Card>
+        <Card className="stack sm"><strong>Join a pod</strong><TextField label="Pod name" value={jname} onChange={(e) => setJname(e.target.value)} maxLength={60} autoComplete="off" /><TextField label="Pod code" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="POD-XXXX" maxLength={12} autoComplete="off" /><div><Button loading={busy === 'j'} disabled={code.trim().length < 5 || !jname.trim()} onClick={join}>Join pod</Button></div></Card>
+      </div>
+      </details>
+    </div>
+  );
+}
+
+const TYPE_LABEL = { plan: 'Study plan', time: 'Short on time', next: 'Next step' };
+
+function Trail() {
+  const { user } = useApp();
+  const doc = useLive(`users/${user.uid}/goals/ledger`);
+  const entries = ((doc.data && doc.data.entries) || []).slice().reverse();
+  if (doc.loading) return <PageSkeleton rows={2} />;
+  if (!entries.length) return <Empty art="chart" title="No decisions yet" text="When Learnr makes you a plan or tells you what to do next, the reasons are kept here." />;
+  return (
+    <div className="stack">
+      <p className="muted">Why Learnr suggested what it did. Only you can see this.</p>
+      <Card className="list-card">
+        {entries.map((e, i) => (
+          <div key={i} className="item-row" style={{ alignItems: 'flex-start' }}>
+            <span className="grow"><strong className="break">{e.title}</strong><span className="pre muted" style={{ display: 'block' }}>{e.reasoning}</span></span>
+            <span className="stack sm" style={{ alignItems: 'flex-end' }}><Badge>{TYPE_LABEL[e.type] || 'Note'}</Badge><span className="muted small">{fmtDate(e.at)}</span></span>
+          </div>
+        ))}
+      </Card>
+    </div>
+  );
+}
+
+export default function Pod() {
+  const [tab, setTab] = useState('pod');
+  const [inside, setInside] = useState(false);
+  return (
+    <div className="stack lg">
+      {!(inside && tab === 'pod') && <PageHead title="Study Pod" sub="Study with friends and see why Learnr suggests what it does." />}
+      {!(inside && tab === 'pod') && <Seg label="Pod sections" value={tab} onChange={setTab} options={[{ value: 'pod', label: 'My pods' }, { value: 'trail', label: 'Reasoning trail' }]} />}
+      {tab === 'pod' ? <Pods onImmersive={setInside} /> : <Trail />}
+    </div>
+  );
+}

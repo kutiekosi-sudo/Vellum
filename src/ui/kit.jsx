@@ -83,7 +83,7 @@ export function Empty({ art, title, text, action, children }) {
   return (
     <div className="empty">
       {art && <Art name={art} className="art" />}
-      <h3>{title}</h3>
+      <h2>{title}</h2>
       {text && <p>{text}</p>}
       {action}
       {children}
@@ -102,7 +102,7 @@ export function ErrorBlock({ error, onRetry, title = "That didn't load" }) {
     : error.message)) || 'Something went wrong.';
   return (
     <Card className="stack" role="alert">
-      <div className="row"><Icon name="alert" /><h3>{title}</h3></div>
+      <div className="row"><Icon name="alert" /><h2>{title}</h2></div>
       <p className="muted break">{msg}</p>
       {onRetry && <div><Button variant="secondary" icon="refresh" onClick={onRetry}>Try again</Button></div>}
     </Card>

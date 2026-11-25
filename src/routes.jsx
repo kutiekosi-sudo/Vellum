@@ -5,6 +5,14 @@ import { PageHead } from './ui/kit.jsx';
 import Profile from './pages/Profile.jsx';
 import Classes from './pages/Classes.jsx';
 import ClassPage from './pages/ClassPage.jsx';
+import Pod from './pages/Pod.jsx';
+import Coach from './pages/Coach.jsx';
+import Home from './pages/Home.jsx';
+import Notifications from './pages/Notifications.jsx';
+import Search from './pages/Search.jsx';
+import StudyShell from './pages/study/StudyShell.jsx';
+import Calendar from './pages/Calendar.jsx';
+import TeacherCoach from './pages/TeacherCoach.jsx';
 
 function Soon({ title, art = 'desk' }) {
   return (
@@ -18,21 +26,27 @@ const soon = (title, art) => () => <Soon title={title} art={art} />;
 
 const SHARED = {
   '/profile': { title: 'Profile', Page: Profile },
-  '/notifications': { title: 'Notifications', Page: soon('Notifications', 'bell') },
-  '/search': { title: 'Search', Page: soon('Search', 'search') },
+  '/notifications': { title: 'Notifications', Page: Notifications },
+  '/search': { title: 'Search', Page: Search },
 };
 const STUDENT = {
-  '/': { title: 'Home', Page: soon('Home', 'desk') },
+  '/': { title: 'Home', Page: Home },
   '/classes': { title: 'Classes', Page: Classes },
-  '/study': { title: 'Study', Page: soon('Study', 'focus') },
-  '/coach': { title: 'Coach', Page: soon('Coach', 'coach') },
-  '/pod': { title: 'Study Pod', Page: soon('Study Pod', 'pod') },
+  '/study': { title: 'Study', Page: StudyShell },
+  '/study/learn': { title: 'Study', Page: StudyShell },
+  '/study/stats': { title: 'Study', Page: StudyShell },
+  '/study/insights': { title: 'Study', Page: StudyShell },
+  '/study/practice': { title: 'Study', Page: StudyShell },
+  '/study/cards': { title: 'Study', Page: StudyShell },
+  '/coach': { title: 'Coach', Page: Coach },
+  '/pod': { title: 'Study Pod', Page: Pod },
   ...SHARED,
 };
 const TEACHER = {
-  '/': { title: 'Home', Page: soon('Home', 'classroom') },
+  '/': { title: 'Home', Page: Home },
   '/classes': { title: 'Classes', Page: Classes },
-  '/coach': { title: 'Coach', Page: soon('Coach', 'coach') },
+  '/calendar': { title: 'Calendar', Page: Calendar },
+  '/coach': { title: 'Coach', Page: TeacherCoach },
   ...SHARED,
 };
 

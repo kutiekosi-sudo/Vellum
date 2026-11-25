@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useApp } from '../../lib/store.jsx';
 import { useAsync } from '../../lib/hooks.js';
 import { db } from '../../backend/index.js';
-import { cbt } from '../../lib/api.js';
+import { ai, cbt } from '../../lib/api.js';
 import { notify } from '../../lib/classwork.js';
 import { fmtDateTime, plural } from '../../lib/util.js';
 import { Badge, Button, Card, Empty, ErrorBlock, Modal, Notice, PageSkeleton, TextArea, TextField, useConfirm } from '../../ui/kit.jsx';
@@ -12,7 +12,22 @@ function MarkModal({ cls, tid, theory, item, onClose, onSaved }) {
   const [marks, setMarks] = useState(() => Object.fromEntries(theory.map((t) => [t.id, item.graded ? String(item.marks[t.id] ?? 0) : ''])));
   const [fb, setFb] = useState(() => ({ ...item.feedback }));
   const [busy, setBusy] = useState(false);
+  const [sug, setSug] = useState(null);
+  const [asking, setAsking] = useState(false);
   const bad = theory.some((t) => marks[t.id] !== '' && (Number(marks[t.id]) < 0 || Number(marks[t.id]) > t.marks || !Number.isFinite(Number(marks[t.id]))));
+  const answered = theory.filter((t) => String((item.answers || {})[t.id] || '').trim());
+  const ask = async () => {
+    setAsking(true);
+    try {
+      const r = await ai('mark_suggest', { subject: cls.subject || cls.name, level: cls.name, items: answered.map((t) => ({ id: t.id, question: t.text, maxMarks: t.marks, guide: t.guide || '', answer: item.answers[t.id] })) });
+      const by = {};
+      for (const x of (r.data && r.data.items) || []) { const t = theory.find((q) => q.id === x.id); if (!t) continue; const m = Math.max(0, Math.min(t.marks, Math.round((Number(x.marks) || 0) * 2) / 2)); by[x.id] = { marks: m, comment: String(x.comment || '').slice(0, 600), confidence: ['high', 'medium', 'low'].includes(x.confidence) ? x.confidence : 'medium' }; }
+      setSug(by);
+    } catch (e) { fail(e); }
+    setAsking(false);
+  };
+  const use = (id) => { const x = sug[id]; if (!x) return; setMarks((m) => ({ ...m, [id]: String(x.marks) })); setFb((f) => ({ ...f, [id]: f[id] ? f[id] : x.comment })); };
+  const useAll = () => { for (const id of Object.keys(sug)) use(id); };
   const save = async () => {
     setBusy(true);
     try {
@@ -26,11 +41,26 @@ function MarkModal({ cls, tid, theory, item, onClose, onSaved }) {
       footer={<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button loading={busy} disabled={bad} onClick={save}>Save marks</Button></>}>
       <div className="stack">
         {item.autoSubmitted && <Notice tone="warn">This was handed in automatically when time ran out.</Notice>}
+        {answered.length > 0 && (
+          <Card className="stack sm" aria-label="AI marking help">
+            <div className="row between wrap" style={{ gap: 8 }}>
+              <span className="small"><strong>Marking help</strong><span className="muted"> Learnr can suggest a mark and a comment for each answer. You decide: nothing is saved until you press Save marks.</span></span>
+              <div className="row wrap"><Button size="sm" variant="secondary" loading={asking} onClick={ask}>{sug ? 'Suggest again' : 'Suggest marks'}</Button>{sug && <Button size="sm" onClick={useAll}>Use all suggestions</Button>}</div>
+            </div>
+          </Card>
+        )}
         {theory.map((t, i) => (
           <div key={t.id} className="stack sm" style={{ borderTop: i ? '1px solid var(--line)' : 0, paddingTop: i ? 12 : 0 }}>
             <strong className="break pre">{i + 1}. {t.text}</strong>
             {t.guide && <p className="muted small pre">Marking guide: {t.guide}</p>}
             <div className="card" style={{ padding: 12, background: 'var(--bg)' }}><p className="pre break">{(item.answers || {})[t.id] || <span className="muted">No answer written.</span>}</p></div>
+            {sug && sug[t.id] && (
+              <div className="card stack sm" data-suggestion style={{ padding: 12, background: 'color-mix(in srgb, var(--accent) 7%, var(--surface))' }}>
+                <span className="small"><strong>Suggested: {sug[t.id].marks} out of {t.marks}</strong>{sug[t.id].confidence === 'low' && <Badge>Not sure, check this one</Badge>}</span>
+                <span className="small muted pre">{sug[t.id].comment}</span>
+                <div><Button size="sm" variant="secondary" onClick={() => use(t.id)}>Use this mark and comment</Button></div>
+              </div>
+            )}
             <TextField label={`Marks out of ${t.marks}`} type="number" inputMode="decimal" min="0" max={t.marks} step="0.5" value={marks[t.id]} onChange={(e) => setMarks({ ...marks, [t.id]: e.target.value })} />
             <TextArea label="Comment for the student (optional)" rows={2} value={fb[t.id] || ''} onChange={(e) => setFb({ ...fb, [t.id]: e.target.value })} maxLength={2000} />
           </div>

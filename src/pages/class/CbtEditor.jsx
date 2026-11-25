@@ -9,6 +9,8 @@ import { toLocalInput, fromLocalInput } from '../../lib/util.js';
 import CbtResults from './CbtResults.jsx';
 import { Badge, Button, Seg, Card, Check, Empty, ErrorBlock, Notice, PageSkeleton, SectionTitle, SelectField, TextArea, TextField, useConfirm } from '../../ui/kit.jsx';
 import { Icon } from '../../ui/icons.jsx';
+import { useBank } from '../QuestionBank.jsx';
+import { saveToBank, toBank, validBank } from '../../lib/qbank.js';
 import { AddQuestions, McqCard, TheoryCard, blankMcq, blankTheory, mcqProblem, theoryProblem, withKey } from './CbtQuestions.jsx';
 
 export const PUBLISH_READY = true;
@@ -28,6 +30,15 @@ function Editor({ cls, tid, meta, initial }) {
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
   const [showErrors, setShowErrors] = useState(false);
+  const bank = useBank();
+  const toBankNow = async () => {
+    try {
+      const meta2 = { subject: cls.subject || '', topic: s.topic || '', difficulty: 'medium' };
+      const items = [...qs.map((q) => toBank(q, 'mcq', meta2)), ...th.map((q) => toBank(q, 'theory', meta2))].filter((b) => !validBank(b));
+      const n = await saveToBank(user.uid, bank.list, items);
+      toast(n ? `${n} question${n === 1 ? '' : 's'} saved to your bank` : 'Everything here is already in your bank');
+    } catch (e) { fail(e); }
+  };
   const mark = (fn) => (...a) => { setDirty(true); return fn(...a); };
   const set = (k) => (e) => { setDirty(true); setS({ ...s, [k]: e.target.value }); };
   const tog = (k) => (v) => { setDirty(true); setS({ ...s, [k]: v }); };
@@ -101,7 +112,7 @@ function Editor({ cls, tid, meta, initial }) {
       <div className="page-head" style={{ marginBottom: 0 }}>
         <div className="grow">
           <a className="btn ghost sm" href={href(`/class/${cls.id}/cbts`)}><Icon name="left" />CBTs</a>
-          <h1 className="break" style={{ fontSize: 26 }}>{s.title || 'Untitled CBT'}</h1>
+          <h2 className="break" style={{ fontSize: 26 }}>{s.title || 'Untitled CBT'}</h2>
           <div className="row wrap" style={{ marginTop: 6 }}>
             <Badge>{qs.length} multiple-choice</Badge>{th.length > 0 && <Badge>{th.length} written</Badge>}<Badge>{totalMarks} marks</Badge>
             <Badge tone={meta.published ? 'ok' : 'warn'}>{meta.published ? 'Published' : 'Draft'}</Badge>
@@ -112,7 +123,7 @@ function Editor({ cls, tid, meta, initial }) {
       </div>
 
       <Card className="stack">
-        <h3>Settings</h3>
+        <h2 className="h-sm">Settings</h2>
         <TextField label="Title" value={s.title} onChange={set('title')} maxLength={140} autoComplete="off" />
         <div className="grid cols-2">
           <TextField label="Topic (optional)" value={s.topic} onChange={set('topic')} maxLength={80} autoComplete="off" />
@@ -135,7 +146,7 @@ function Editor({ cls, tid, meta, initial }) {
         <Check label="Show explanations in the review" checked={s.showExplanations} onChange={tog('showExplanations')} />
       </Card>
 
-      <AddQuestions cls={cls} onAdd={addBatch} onBlankMcq={mark(() => setQs((c) => [...c, blankMcq()]))} onBlankTheory={mark(() => setTh((c) => [...c, blankTheory()]))} />
+      <AddQuestions cls={cls} have={[...qs, ...th].map((q) => String(q.text || '').trim().toLowerCase())} onAdd={addBatch} onBlankMcq={mark(() => setQs((c) => [...c, blankMcq()]))} onBlankTheory={mark(() => setTh((c) => [...c, blankTheory()]))} />
 
       <SectionTitle title={`Multiple-choice questions (${qs.length})`} />
       {qs.length === 0 ? <Empty art="test" title="No multiple-choice questions yet" text="Add some above." /> : qs.map((q, i) => (
@@ -149,8 +160,10 @@ function Editor({ cls, tid, meta, initial }) {
           onChange={mark((nq) => setTh(th.map((x, j) => (j === i ? nq : x))))} onMove={mark((d) => move(th, setTh, i, d))} onDup={() => dup(th, setTh, i)} onDel={() => del(th, setTh, i)} />
       ))}
 
+      {(qs.length > 0 || th.length > 0) && <div><Button variant="secondary" onClick={toBankNow}>Save these to my question bank</Button></div>}
+
       <Card className="stack">
-        <h3>Publishing</h3>
+        <h2 className="h-sm">Publishing</h2>
         <p className="muted">{meta.published ? 'Students can open this CBT now. Changing questions after students have started is not recommended.' : 'Publish when you are happy with the questions. Students are told as soon as it is live.'}</p>
         <div className="row wrap">
           {meta.published ? <Button variant="ghost" onClick={unpublish}>Unpublish</Button> : <Button loading={busy} onClick={publish}>Save and publish</Button>}

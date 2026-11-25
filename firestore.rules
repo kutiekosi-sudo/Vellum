@@ -6,12 +6,12 @@ rules_version = '2';
 // Data model (all paths are inside the "default" database):
 //   users/{uid}                              profile + permanent role ('student' | 'teacher')
 //   users/{uid}/memberships/{classId}        classes a student has joined (private to the student)
-//   users/{uid}/studySessions|goals|...      private study data (private to the owner)
+//   users/{uid}/studySessions|goals|topics|...      private study data (private to the owner)
 //   users/{uid}/notifications/{id}           notifications (owner reads; people in the same class may create)
 //   classes/{classId}                        a classroom (owned by one teacher)
 //   classCodes/{CODE}                        join code -> class (get only, never listable)
 //   classes/{classId}/members/{uid}          class roster (teacher-readable; each student reads only their own)
-//   classes/{classId}/announcements|assignments|resources|cbts/...
+//   classes/{classId}/announcements|assignments|resources|cbts|room|presence/...
 //   classes/{classId}/assignments/{a}/submissions/{uid}
 //   classes/{classId}/cbts/{id}/theory/{sid} revision material for a CBT
 //   pods/{podId}, podCodes/{CODE}            Study Pod
@@ -75,7 +75,7 @@ service cloud.firestore {
       // Private per-user collections.
       match /{coll}/{docId} {
         allow read, write: if signedIn() && me() == u
-          && coll in ['memberships', 'studySessions', 'goals', 'flashcards', 'practice', 'aiChats', 'podMemberships'];
+          && coll in ['memberships', 'studySessions', 'goals', 'flashcards', 'practice', 'topics', 'aiChats', 'podMemberships', 'calendar', 'scheme', 'concepts', 'questionBank', 'lessonPlans'];
       }
 
       match /notifications/{n} {
@@ -162,6 +162,27 @@ service cloud.firestore {
         }
       }
 
+      // Study room: classmates see who is studying and can chat. The teacher can see, delete, and switch the room off.
+      match /room/{m} {
+        allow read: if inClass(c);
+        allow create: if (isActiveMember(c) || isClassTeacher(c))
+          && (isClassTeacher(c) || get(classPath(c)).data.get('roomOpen', true) == true)
+          && request.resource.data.keys().hasOnly(['uid', 'name', 'text', 'createdAt'])
+          && request.resource.data.uid == me()
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 300
+          && request.resource.data.createdAt is number;
+        allow update: if false;
+        allow delete: if isClassTeacher(c) || (signedIn() && resource.data.uid == me());
+      }
+      match /presence/{u} {
+        allow read: if inClass(c);
+        allow create, update: if isActiveMember(c) && u == me()
+          && request.resource.data.keys().hasOnly(['uid', 'name', 'topic', 'startedAt', 'endsAt'])
+          && request.resource.data.uid == me();
+        allow delete: if signedIn() && (u == me() || isClassTeacher(c));
+      }
+
       match /cbts/{t} {
         allow read: if isClassTeacher(c) || (isActiveMember(c) && resource.data.published == true);
         allow write: if isClassTeacher(c);
@@ -186,6 +207,20 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // ---------- shared study sets ----------
+    // A student can share a flashcard deck or practice set by giving a friend its long random code.
+    // Anyone with the code can read that one set; nobody can list or search them.
+    match /shares/{code} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn() && request.resource.data.ownerUid == me()
+        && request.resource.data.kind in ['flashcards', 'practice'];
+      allow update: if signedIn() && resource.data.ownerUid == me()
+        && request.resource.data.ownerUid == me()
+        && request.resource.data.kind == resource.data.kind;
+      allow delete: if signedIn() && resource.data.ownerUid == me();
+    }
+
     // ---------- study pods ----------
     match /podCodes/{code} {
       allow get: if signedIn();
@@ -207,9 +242,68 @@ service cloud.firestore {
       match /members/{m} {
         allow read: if isPodMember(p) || isPodOwner(p);
         allow create: if signedIn() && m == me()
-          && (isPodOwner(p) || validPodCode(request.resource.data.code, p));
+          && (isPodOwner(p) || (validPodCode(request.resource.data.code, p)
+              // joining needs the pod's name as well as its code
+              && request.resource.data.get('nameKey', '') == get(/databases/$(database)/documents/podCodes/$(request.resource.data.code)).data.get('nameKey', '')));
         allow update: if signedIn() && m == me();
         allow delete: if signedIn() && (m == me() || isPodOwner(p));
+      }
+
+      // One shared group countdown ("we study for 3 hours"). Any member can start or end it.
+      match /state/{d} {
+        allow read: if isPodMember(p) || isPodOwner(p);
+        allow create, update: if (isPodMember(p) || isPodOwner(p)) && d == 'countdown'
+          && request.resource.data.keys().hasOnly(['minutes', 'startedAt', 'endsAt', 'by', 'byUid', 'active'])
+          && request.resource.data.minutes is number && request.resource.data.minutes >= 5 && request.resource.data.minutes <= 720
+          && request.resource.data.byUid == me();
+        allow delete: if false;
+      }
+
+      // Pod chat and shared notes: only people inside the pod can read or add.
+      match /messages/{x} {
+        allow read: if isPodMember(p) || isPodOwner(p);
+        allow create: if isPodMember(p)
+          && request.resource.data.keys().hasOnly(['uid', 'name', 'text', 'createdAt'])
+          && request.resource.data.uid == me()
+          && request.resource.data.text is string && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 400
+          && request.resource.data.createdAt is number;
+        allow update: if false;
+        allow delete: if signedIn() && (resource.data.uid == me() || isPodOwner(p));
+      }
+      match /notes/{x} {
+        allow read: if isPodMember(p) || isPodOwner(p);
+        allow create: if isPodMember(p)
+          && request.resource.data.keys().hasOnly(['uid', 'name', 'title', 'body', 'createdAt'])
+          && request.resource.data.uid == me()
+          && request.resource.data.title is string && request.resource.data.title.size() > 0 && request.resource.data.title.size() <= 100
+          && request.resource.data.body is string && request.resource.data.body.size() > 0 && request.resource.data.body.size() <= 6000
+          && request.resource.data.createdAt is number;
+        allow update: if false;
+        allow delete: if signedIn() && (resource.data.uid == me() || isPodOwner(p));
+      }
+
+      // Practice quizzes posted into a pod, and each member's own score on them.
+      match /quizzes/{x} {
+        allow read: if isPodMember(p) || isPodOwner(p);
+        allow create: if isPodMember(p)
+          && request.resource.data.keys().hasOnly(['uid', 'name', 'title', 'subject', 'questions', 'createdAt'])
+          && request.resource.data.uid == me()
+          && request.resource.data.title is string && request.resource.data.title.size() > 0 && request.resource.data.title.size() <= 80
+          && request.resource.data.questions is list && request.resource.data.questions.size() >= 1 && request.resource.data.questions.size() <= 60
+          && request.resource.data.createdAt is number;
+        allow update: if false;
+        allow delete: if signedIn() && (resource.data.uid == me() || isPodOwner(p));
+
+        match /results/{u} {
+          allow read: if isPodMember(p) || isPodOwner(p);
+          allow create, update: if isPodMember(p) && u == me()
+            && request.resource.data.keys().hasOnly(['uid', 'name', 'score', 'total', 'at'])
+            && request.resource.data.uid == me()
+            && request.resource.data.score is number && request.resource.data.total is number
+            && request.resource.data.score >= 0 && request.resource.data.score <= request.resource.data.total
+            && request.resource.data.total >= 1 && request.resource.data.total <= 60;
+          allow delete: if signedIn() && (u == me() || isPodOwner(p));
+        }
       }
     }
 

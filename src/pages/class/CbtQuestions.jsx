@@ -8,6 +8,7 @@ import { parsePaper } from '../../lib/paperParser.js';
 import { Badge, Button, Card, Check, IconButton, Notice, SelectField, TextArea, TextField, Seg } from '../../ui/kit.jsx';
 import { AttachmentPicker } from '../../ui/Attachments.jsx';
 import { Icon } from '../../ui/icons.jsx';
+import { BankPicker } from '../QuestionBank.jsx';
 
 const LETTERS = 'ABCDEF';
 export const blankMcq = () => ({ _k: Math.random().toString(36).slice(2), text: '', options: ['', '', '', ''], correct: -1, points: 1, explanation: '', topic: '', skill: '' });
@@ -54,7 +55,7 @@ export function McqCard({ q, i, n, onChange, onMove, onDup, onDel, showErrors })
         <legend className="small strong" style={{ marginBottom: 6 }}>Answer options. Tap the circle beside the correct one.</legend>
         {q.options.map((o, idx) => (
           <div className="row" key={idx}>
-            <input type="radio" name={`correct-${q._k}`} checked={q.correct === idx} onChange={() => set({ correct: idx })} aria-label={`Option ${LETTERS[idx]} is correct`} style={{ width: 22, height: 22, accentColor: 'var(--brand)', flex: 'none' }} />
+            <input type="radio" name={`correct-${q._k}`} checked={q.correct === idx} onChange={() => set({ correct: idx })} aria-label={`Option ${LETTERS[idx]} is correct`} style={{ width: 26, height: 26, accentColor: 'var(--brand)', flex: 'none' }} />
             <span className="strong" aria-hidden="true" style={{ width: 18 }}>{LETTERS[idx]}</span>
             <input className="input grow" value={o} onChange={(e) => setOpt(idx, e.target.value)} placeholder={`Option ${LETTERS[idx]}`} aria-label={`Option ${LETTERS[idx]} text`} maxLength={500} />
             {q.options.length > 2 && <IconButton icon="x" label={`Remove option ${LETTERS[idx]}`} size="sm" onClick={() => delOpt(idx)} />}
@@ -94,7 +95,7 @@ export function TheoryCard({ q, i, n, onChange, onMove, onDup, onDel, showErrors
 }
 
 // ---------- paste a paper you already have ----------
-export function PastePanel({ onAdd }) {
+export function PastePanel({ onAdd, target = 'this CBT' }) {
   const [raw, setRaw] = useState('');
   const [result, setResult] = useState(null);
   const read = () => setResult(parsePaper(raw));
@@ -110,7 +111,7 @@ export function PastePanel({ onAdd }) {
         <div className="stack sm">
           <Notice tone="ok">Found {result.questions.length} multiple-choice and {result.theory.length} written question{found === 1 ? '' : 's'}.</Notice>
           {result.warnings.map((w) => <Notice key={w} tone="warn">{w}</Notice>)}
-          <div><Button onClick={() => { onAdd({ questions: result.questions, theory: result.theory }); setRaw(''); setResult(null); }}>Add {found} to this CBT</Button></div>
+          <div><Button onClick={() => { onAdd({ questions: result.questions, theory: result.theory }); setRaw(''); setResult(null); }}>Add {found} to {target}</Button></div>
         </div>
       ))}
     </div>
@@ -184,14 +185,15 @@ export function AiPanel({ cls, onAdd }) {
   );
 }
 
-export function AddQuestions({ cls, onAdd, onBlankMcq, onBlankTheory }) {
+export function AddQuestions({ cls, onAdd, onBlankMcq, onBlankTheory, have = [] }) {
   const [mode, setMode] = useState('ai');
   return (
     <Card className="stack">
       <h3>Add questions</h3>
-      <Seg label="How to add questions" value={mode} onChange={setMode} options={[{ value: 'ai', label: 'AI from notes' }, { value: 'paste', label: 'Paste a paper' }, { value: 'write', label: 'Write them' }]} />
+      <Seg label="How to add questions" value={mode} onChange={setMode} options={[{ value: 'ai', label: 'AI from notes' }, { value: 'paste', label: 'Paste a paper' }, { value: 'write', label: 'Write them' }, { value: 'bank', label: 'My bank' }]} />
       {mode === 'ai' && <AiPanel cls={cls} onAdd={onAdd} />}
       {mode === 'paste' && <PastePanel onAdd={onAdd} />}
+      {mode === 'bank' && <BankPicker onAdd={onAdd} have={have} />}
       {mode === 'write' && (
         <div className="row wrap">
           <Button variant="secondary" icon="plus" onClick={onBlankMcq}>Multiple-choice question</Button>

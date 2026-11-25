@@ -10,7 +10,9 @@
 //   io.listAttempts(classId, cbtId, uid?)         -> attempt[]
 //   io.getAttempt(classId, cbtId, uid, id)        -> attempt | null
 //   io.putAttempt(attempt)
-//   io.deleteAttempts(classId, cbtId, uid)        -> number removed
+//   io.getProgress(classId, cbtId, uid, id)       -> { progress, progressTheory, events, at } | null   (autosaves live apart from the attempt)
+//   io.putProgress(classId, cbtId, uid, id, data)
+//   io.deleteAttempts(classId, cbtId, uid)        -> number removed (attempts and their autosaves)
 //   io.limitStart(user)                           -> throws when the student starts too many attempts
 
 import { HttpError, safeId, newId } from './shared.mjs';
@@ -32,8 +34,18 @@ function mergeEvents(old, incoming) {
 
 export function makeActions(io) {
   // A timed attempt that ran out of time is graded from the last saved progress.
+  // Autosaves are stored apart from the attempt, so a late autosave can never undo a submission.
+  async function withProgress(attempt) {
+    if (attempt.submittedAt || !io.getProgress) return attempt;
+    const p = await io.getProgress(attempt.classId, attempt.cbtId, attempt.uid, attempt.id);
+    if (!p || !(p.at >= attempt.startedAt - 2000)) return attempt; // ignore leftovers from an attempt that was reset
+    return { ...attempt, progress: p.progress || {}, progressTheory: p.progressTheory || {}, events: p.events || attempt.events };
+  }
+
   async function finalizeIfExpired(attempt, qdoc) {
-    if (attempt.submittedAt || io.now() <= attempt.expiresAt + GRACE_MS) return attempt;
+    if (attempt.submittedAt) return attempt;
+    attempt = await withProgress(attempt);
+    if (io.now() <= attempt.expiresAt + GRACE_MS) return attempt;
     const done = { ...attempt, ...gradeAttempt(qdoc, attempt, attempt.progress || {}), theoryAnswers: attempt.progressTheory || {}, submittedAt: attempt.expiresAt, autoSubmitted: true };
     await io.putAttempt(done);
     return done;
@@ -82,8 +94,16 @@ export function makeActions(io) {
       const max = Math.max(1, Number(meta.maxAttempts) || 1);
       if (attempts.length >= max) throw new HttpError(403, 'You have used all of your attempts for this CBT.', 'no_attempts');
 
+      // The id is the attempt number, so two requests that arrive together (a double tap, two tabs) build the very
+      // same attempt instead of two different ones. The shuffle is seeded from the id, so both orders match.
+      const id = `a${attempts.length + 1}`;
+      const clash = await io.getAttempt(body.classId, body.cbtId, user.uid, id);
+      if (clash) {
+        if (clash.submittedAt) throw new HttpError(409, 'Please try again.', 'retry');
+        return startPayload(await withProgress(clash), qdoc, meta, now);
+      }
       const attempt = makeAttempt({
-        id: newId(9), classId: body.classId, cbtId: body.cbtId, uid: user.uid, name: user.name, qdoc, meta, now,
+        id, classId: body.classId, cbtId: body.cbtId, uid: user.uid, name: user.name, qdoc, meta, now,
       });
       await io.putAttempt(attempt);
       return startPayload(attempt, qdoc, meta, now);
@@ -99,7 +119,12 @@ export function makeActions(io) {
       for (const [k, v] of Object.entries(body.answers || {})) if (attempt.order[k] && Number.isInteger(v)) clean[k] = v;
       const qdoc = await io.getQuestions(body.classId, body.cbtId);
       const progressTheory = qdoc ? cleanTheoryAnswers(qdoc, body.theory) : {};
-      await io.putAttempt({ ...attempt, progress: clean, progressTheory, events: mergeEvents(attempt.events, body.events) });
+      if (io.putProgress) {
+        const prior = io.getProgress ? await io.getProgress(body.classId, body.cbtId, user.uid, attempt.id) : null;
+        await io.putProgress(body.classId, body.cbtId, user.uid, attempt.id, { progress: clean, progressTheory, events: mergeEvents(prior ? prior.events : attempt.events, body.events), at: io.now() });
+      } else {
+        await io.putAttempt({ ...attempt, progress: clean, progressTheory, events: mergeEvents(attempt.events, body.events) });
+      }
       return { ok: true };
     },
 
@@ -112,6 +137,7 @@ export function makeActions(io) {
       let attempt = await io.getAttempt(body.classId, body.cbtId, user.uid, body.attemptId);
       if (!attempt) throw new HttpError(404, 'Attempt not found.', 'not_found');
       if (!attempt.submittedAt) {
+        attempt = await withProgress(attempt);
         const inTime = io.now() <= attempt.expiresAt + GRACE_MS;
         const clean = {};
         const source = inTime ? body.answers || {} : attempt.progress || {};
